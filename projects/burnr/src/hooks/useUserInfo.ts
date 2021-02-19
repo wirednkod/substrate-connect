@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2
 import BN from 'bn.js';
 import { useEffect, useState } from 'react';
-import type { AccountInfo, Balance } from '@polkadot/types/interfaces';
 
 import useApi from './api/useApi';
 import useIsMountedRef from './api/useIsMountedRef';
@@ -10,7 +9,7 @@ import { UserInfo } from '../utils/types';
 export default function useUserInfo (address: string): UserInfo {
   const api = useApi();
   const  mountedRef = useIsMountedRef();
-  const [usersInfo, setUsersInfo] = useState<any>([]);
+  const [usersInfo, setUsersInfo] = useState<unknown>([]);
 
   useEffect((): () => void => {
     let unsubscribe: null | (() => void) = null;
@@ -18,16 +17,16 @@ export default function useUserInfo (address: string): UserInfo {
     api.query.system
         .account(address, ( data ): void => {
           mountedRef.current && setUsersInfo({
-              active: !(data as AccountInfo).refcount.isZero(),
+              active: !(data).refcount?.isZero(),
               address: address,
               created: new Date(),
-              balance: new BN((data as AccountInfo).data.free),
-              reserved: new BN((data as AccountInfo).data.reserved),
-              feeFrozen: new BN((data as AccountInfo).data.feeFrozen),
-              miscFrozen: new BN((data as AccountInfo).data.feeFrozen)
+              balance: new BN((data).data.free),
+              reserved: new BN((data).data.reserved),
+              feeFrozen: new BN((data).data.feeFrozen),
+              miscFrozen: new BN((data).data.feeFrozen)
             });
         })
-        .then((u: any): void => {
+        .then((u: null | (() => void)): void => {
           unsubscribe = u;
         })
         .catch(console.error);
@@ -35,7 +34,7 @@ export default function useUserInfo (address: string): UserInfo {
     return (): void => {
       unsubscribe && unsubscribe();
     }
-  }, [address, api]);
+  }, [address, api, mountedRef]);
 
-  return usersInfo as any;
+  return usersInfo as UserInfo;
 }

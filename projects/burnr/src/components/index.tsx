@@ -1,5 +1,6 @@
 export { default as AccountCard } from './AccountCard';
 export { default as AccountMenu } from './AccountMenu';
+export { default as AccountBurn } from './AccountBurn';
 export { default as Bg } from './Bg';
 export { default as BalanceValue } from './BalanceValue';
 export { default as Head } from './Head';
@@ -15,5 +16,6 @@ export { default as NodeSelectorItem } from './NodeSelectorItem';
 export { default as PopoverInfo } from './PopoverInfo';
 export { default as PopoverExtrinsic } from './PopoverExtrinsic';
 export { default as SendFundsForm } from './SendFundsForm';
+export { default as ReceiveFundsForm } from './ReceiveFundsForm';
 export { default as ThemeButton } from './ThemeButton';
 export { default as ThemeToggleProvider } from './ThemeToggleProvider';

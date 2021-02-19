@@ -1,4 +1,4 @@
-// Copyright 2018-2020 @paritytech/substrate-connect authors & contributors
+// Copyright 2018-2021 @paritytech/substrate-connect authors & contributors
 // This software may be modified and distributed under the terms
 // of the Apache-2.0 license. See the LICENSE file for details.
 
@@ -14,6 +14,7 @@ import { assert, isUndefined, logger } from '@polkadot/util';
 import EventEmitter from 'eventemitter3';
 import * as smoldot from 'smoldot';
 import database, { Database } from './Database';
+import { HealthCheckError } from './errors';
 
 const l = logger('smoldot-provider');
 
@@ -36,11 +37,24 @@ interface StateSubscription extends SubscriptionHandler {
     params: any[];
 }
 
+interface HealthResponse {
+  isSyncing: boolean;
+  peers: number;
+  shouldHavePeers: boolean;
+}
+
+
 const ANGLICISMS: { [index: string]: string } = {
   chain_finalisedHead: 'chain_finalizedHead',
   chain_subscribeFinalisedHeads: 'chain_subscribeFinalizedHeads',
   chain_unsubscribeFinalisedHeads: 'chain_unsubscribeFinalizedHeads'
 };
+
+/*
+ * Number of milliseconds to wait between checks to see if we have any 
+ * connected peers in the smoldot client
+ */
+const CONNECTION_STATE_PINGER_INTERVAL = 2000;
 
 /**
  * @name SmoldotProvider
@@ -81,12 +95,18 @@ export class SmoldotProvider implements ProviderInterface {
   readonly #handlers: Record<string, RpcStateAwaiting> = {};
   readonly #subscriptions: Record<string, StateSubscription> = {};
   readonly #waitingForId: Record<string, JsonRpcResponse> = {};
+  #connectionStatePingerId: ReturnType<typeof setInterval> | null;
   #isConnected = false;
   #client: smoldot.SmoldotClient | undefined = undefined;
   #db: Database;
   // reference to the smoldot module so we can defer loading the wasm client
   // until connect is called
   #smoldot: smoldot.Smoldot;
+
+  /*
+   * How frequently to see if we have any peers
+   */
+  healthPingerInterval = CONNECTION_STATE_PINGER_INTERVAL;
 
    /**
    * @param {string}   chainSpec  The chainSpec for the WASM client
@@ -99,6 +119,7 @@ export class SmoldotProvider implements ProviderInterface {
     this.#chainSpec = chainSpec;
     this.#smoldot = sm || smoldot;
     this.#db = db || database();
+    this.#connectionStatePingerId = null;
   }
 
   /**
@@ -191,6 +212,54 @@ export class SmoldotProvider implements ProviderInterface {
     }
   }
 
+  #simulateLifecycle = (health: HealthResponse) => {
+    // development chains should not have peers so we only emit connected
+    // once and never disconnect
+    if (health.shouldHavePeers == false) {
+      
+      if (!this.#isConnected) {
+        this.#isConnected = true;
+        this.emit('connected');
+        l.debug(`emitted CONNECTED`);
+        return;
+      }
+
+      return;
+    }
+
+    const peerCount = health.peers;
+
+    l.debug(`Simulating lifecylce events from system_health`);
+    l.debug(`isConnected: ${this.#isConnected}, new peerCount: ${peerCount}`);
+
+    if (this.#isConnected && peerCount > 0) {
+      // still connected
+      return;
+    }
+
+    if (this.#isConnected && peerCount === 0) {
+      this.#isConnected = false;
+      this.emit('disconnected');
+      l.debug(`emitted DISCONNECTED`);
+      return;
+    }
+
+    if (!this.#isConnected && peerCount > 0) {
+      this.#isConnected = true;
+      this.emit('connected');
+      l.debug(`emitted CONNECTED`);
+      return;
+    }
+
+    // still not connected
+  }
+
+  #checkClientPeercount = () => {
+    this.send('system_health', [])
+      .then(this.#simulateLifecycle)
+      .catch(error => this.emit('error', new HealthCheckError(error)));
+  }
+
   /**
    * @description "Connect" the WASM client - starts the smoldot WASM client
    */
@@ -213,8 +282,8 @@ export class SmoldotProvider implements ProviderInterface {
       })
       .then((client: smoldot.SmoldotClient) => {
         this.#client = client;
-        this.#isConnected = true;
-        this.emit('connected');
+        this.#connectionStatePingerId = setInterval(
+          this.#checkClientPeercount, this.healthPingerInterval);
       })
       .catch((error: Error) => {
         this.emit('error', error);
@@ -230,8 +299,15 @@ export class SmoldotProvider implements ProviderInterface {
     if (this.#client) {
       this.#client = undefined;
     }
+
+    if (this.#connectionStatePingerId !== null) {
+      clearInterval(this.#connectionStatePingerId);
+    }
+
     this.#isConnected = false;
     this.emit('disconnected');
+
+    return Promise.resolve();
   }
 
   /**
@@ -274,7 +350,7 @@ export class SmoldotProvider implements ProviderInterface {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
     return new Promise((resolve, reject): void => {
-        assert(this.isConnected && this.#client, 'Client is not connected');
+        assert(this.#client, 'Client is not initialised');
 
         const json = this.#coder.encodeJson(method, params);
         const id = this.#coder.getId();

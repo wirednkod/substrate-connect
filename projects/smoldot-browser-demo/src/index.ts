@@ -34,7 +34,7 @@ window.onload = () => {
 
       // Show how many peers we are syncing with
       const health = await api.rpc.system.health();
-      const peers = health.peers == 1 ? '1 peer' : `${health.peers} peers`;
+      const peers = health.peers.toNumber() === 1 ? '1 peer' : `${health.peers} peers`;
       ui.log(`${emojis.stethoscope} Chain is syncing with ${peers}`);
 
       // Check the state of syncing every 2s and update the syncing state message
@@ -43,11 +43,11 @@ window.onload = () => {
       // adding subscriptions. Carries on pinging to keep the UI consistent 
       // in case syncing stops or starts.
       const waitForChainToSync = () => {
-        const resolved = false;
+        let resolved = false;
         return new Promise<void>((resolve, reject) => {
           setInterval(() => {
             api.rpc.system.health().then(health => {
-              if (!health.isSyncing) {
+              if (health.isSyncing.eq(false)) {
                 ui.showSynced();
                 if (!resolved) {
                   resolved = true;
@@ -57,8 +57,11 @@ window.onload = () => {
                 ui.showSyncing();
               }
             }).catch(error => {
-              ui.error(true);
-              reject(error);
+              ui.error(error);
+              if (!resolved) {
+                resolved = true;
+                reject();
+              }
             });
           }, 2000);
         });

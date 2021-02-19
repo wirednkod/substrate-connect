@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Route, Switch } from 'react-router-dom'; // Pages
 import { makeStyles } from '@material-ui/core/styles';
+import { Paper, CircularProgress } from '@material-ui/core';
+import { ApiContext, AccountContext } from './utils/contexts';
+import { LocalStorageAccountCtx } from './utils/types';
+import { useApiCreate, useLocalStorage } from './hooks';
+import { createLocalStorageAccount, isEmpty } from './utils/utils';
 
-import { ApiContext } from './utils/contexts';
-import { useApiCreate } from './hooks';
-
-import { Home } from './pages';
+import Home from './Home';
 
 import { NavFooter, ThemeToggleProvider, Head } from './components';
 
@@ -22,31 +24,65 @@ const useStyles = makeStyles(theme => ({
 	},
 	main: {
 		width: '100%',
-		maxWidth: theme.spacing(3) + 600 + 'px',
+		maxWidth: `${theme.spacing(3) + 650}px`,
 		padding: theme.spacing(2),
 		flex: 1,
 	},
+	loadingPaper: {
+		height: '90vh',
+		textAlign: 'center',
+	},
+	loader: {
+		height: '50px',
+		width: '50px',
+		marginTop: '10vh',
+	},
 }));
 
-const  App: React.FunctionComponent<Props> = ({ className }: Props) => {
+const App: React.FunctionComponent<Props> = ({ className = '' }: Props) => {
 	const api = useApiCreate();
 	const classes = useStyles();
+	const [endpoint, setEndpoint] = useLocalStorage('endpoint');
+	if (!endpoint) setEndpoint('Polkadot-WsProvider');
+	const [localStorageAccount, setLocalStorageAccount] = useLocalStorage(endpoint.split('-')[0]?.toLowerCase());
+
+	const [account, setCurrentAccount] = useState<LocalStorageAccountCtx>({} as LocalStorageAccountCtx);
+	const [loader, setLoader] = useState(true)
+
+	useEffect((): void => {
+		if (api && api.isReady) {
+			if (!localStorageAccount) {
+				const userTmp = createLocalStorageAccount();
+				setLocalStorageAccount(JSON.stringify(userTmp));
+				setCurrentAccount(userTmp);
+			} else {
+				setCurrentAccount(JSON.parse(localStorageAccount));
+			}
+			setLoader(false)
+		}
+	}, [localStorageAccount, setLocalStorageAccount, api]);
 
 	return (
 		<BrowserRouter>
-			<div className={classes.root + ' ' + className}>
+			<div className={`${classes.root} ${className}`}>
 				<ThemeToggleProvider>
-					<main className={classes.main}>
-						<ApiContext.Provider value={api}>
-						<Head />
-							{api && api.isReady && (
-								<Switch>
-									<Route exact path='/' component={Home} />
-								</Switch>
-							)}
-						</ApiContext.Provider>
-					</main>
-					<NavFooter />
+					<AccountContext.Provider value={{ account, setCurrentAccount }}>
+						<main className={classes.main}>
+							<ApiContext.Provider value={api}>
+								<Head />
+								{loader ?
+								(<Paper className={classes.loadingPaper}>
+									<CircularProgress className={classes.loader} />
+								</Paper>) :
+								api && api.isReady && !isEmpty(account) && (
+									<Switch>
+										<Route exact path='/' component={Home} />
+									</Switch>
+								)}
+							</ApiContext.Provider>
+						</main>
+						<NavFooter />
+					</AccountContext.Provider>
 				</ThemeToggleProvider>
 			</div>
 		</BrowserRouter>

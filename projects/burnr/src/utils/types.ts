@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2
-import type, { Balance, Index, RefCount } from '@polkadot/types/interfaces';
+import { Balance, Index, RefCount } from '@polkadot/types/interfaces';
 import { ProviderInterface } from '@polkadot/rpc-provider/types';
 import { ProviderMeta } from '@polkadot/extension-inject/types';
 import { u32 } from '@polkadot/types';
 import { Codec } from '@polkadot/types/types';
 
 import { ApiPromise } from '@polkadot/api';
-import { KeyringPair } from '@polkadot/keyring/types';
+import { KeyringPair, KeyringPair$Json } from '@polkadot/keyring/types';
 
 /**
  * Interface describing a Provider, lazily loaded.
@@ -14,7 +14,7 @@ import { KeyringPair } from '@polkadot/keyring/types';
 export interface LazyProvider extends ProviderMeta {
   description: string;
   id: string;
-  endpoint?: string;
+  endpoint?: string | undefined;
   client?: string;
   start: () => Promise<ProviderInterface>;
 }
@@ -23,23 +23,33 @@ export interface Account {
   address: string;
   name: string;
 }
-
 export interface DeriveCtx {
-  deriveAddress: (username: string) => string;
+  deriveAddress?: (userName: string) => string;
 }
 
 export interface AccountCtx extends DeriveCtx {
   userAddress: string;
-  userPair: KeyringPair;
-  username: string;
+  userPair?: KeyringPair;
+  userName: string;
+}
+
+export interface LocalStorageAccountCtx extends AccountCtx{
+  userSeed: string;
+  userJson: KeyringPair$Json;
+  userHistory: EvtTxCtx;
+}
+
+export interface CreateAccountCtx {
+  account: LocalStorageAccountCtx,
+  setCurrentAccount: (account: LocalStorageAccountCtx) => void  
 }
 
 export interface AdminCtx extends DeriveCtx {
   adminAddress: string;
   adminPair: KeyringPair;
-  deriveAdmin: (username: string) => string;
+  deriveAdmin: (userName: string) => string;
   treasuryAddress: string;
-  username: string;
+  userName: string;
 }
 
 export interface ApiCtx {
@@ -78,7 +88,7 @@ export interface AccountData extends Codec {
   feeFrozen: Balance;
   txCount: u32;
   sessionIndex: u32;
-};
+}
 
 export interface AccountInfo extends Codec {
   nonce: Index;
@@ -97,8 +107,8 @@ export interface UserInfo {
 }
 
 export interface ExtrinsicInfo {
-  status: string | 0 | 1 | 2;
-};
+  status: string|number;
+}
 export interface SizeScale {
-  size?: 'large' | 'medium' | 'small';
-};
+  size?: 'large'|'medium'|'small';
+}

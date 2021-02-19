@@ -10,7 +10,7 @@ It also provides an interface that enables Dapp developers to effortlessly make 
 
 ### **Multiple building blocks on different levels are necessary to achieve this:**
 
-1. **Ready-to-use Substrate Wasm Light-Clients** to be executed in the browser**.** They are part of the Substrate framework and with that, available for every Substrate based project. If developers want to generate a light client of their chain, all it takes is just one command to compile a library that contains everything that's needed to run a light client in the browser.
+1. **Ready-to-use Substrate Wasm Light-Clients** to be executed in the browser. They are part of the Substrate framework and with that, available for every Substrate based project. If developers want to generate a light client of their chain, all it takes is just one command to compile a library that contains everything that's needed to run a light client in the browser.
 
 2) A **node module that bundles the light-clients** of different chains. It provides an interface that allows developers to run light nodes of different chains and to add runtimes and genesis configs of their own chain.
 
@@ -28,33 +28,33 @@ This repository is using [yarn workspaces](https://classic.yarnpkg.com/en/docs/w
 
 1. Clone the whole `substrate-connect` repository.
 
-```
-$ git clone https://github.com/paritytech/substrate-connect.git
+```bash
+git clone https://github.com/paritytech/substrate-connect.git
 ```
 
 2. Install all dependencies
 
-```
-$ yarn install
+```bash
+yarn install
 ```
 
 3. Compile all packages and projects
 
-```
-$ yarn build
+```bash
+yarn build
 ```
 
 To clean up all workspaces in the repository, run:
 
-```
-$ yarn clean
+```bash
+yarn clean
 ```
 
 ## Run local version of Burnr wallet
 Running the following command will build all necessary dependencies and run the Substrate Burnr Wallet in development mode with hot reloading enabled. It will be served on http://localhost:8000/
 
-```
-$ yarn run dev:burnr
+```bash
+yarn dev:burnr
 ```
 
 (Make sure to run `$ yarn install` before.)
@@ -62,11 +62,52 @@ $ yarn run dev:burnr
 ## Run local version of the Smoldot browser demo
 Running the following command will build all necessary dependencies and run the Smoldot browser demo. It will be served on https://localhost:1234/
 
-```
-$ yarn run dev:smoldot-browser-demo
+```bash
+yarn dev:smoldot-browser-demo
 ```
 
 (Make sure to run `$ yarn install` before.)
+
+## Run local version of Smoldot Extension
+Running the following command will build all necessary dependencies and run the Smoldot Extension in development mode with hot reloading enabled. Once run a new (Chrome) browser will appear with the extension added.
+
+```bash
+yarn dev:smoldot-extension
+```
+
+(Make sure to run `$ yarn install` before.)
+
+## Deploy Smoldot browser demo to Github Pages
+
+Before deploying make sure you have a clean working copy with no staged changes.
+The deploy script will deploy the last commit on your current branch.
+
+The deployment will build the smoldot browser demo into the dist folder and 
+construct a commit containing just that folder with a message containing a 
+reference to the SHA of the commit it came from and push that to the gh-pages
+branch. The dist folder remains ignored by git.
+
+You can deploy to Github pages like so:
+
+```bash
+yarn deploy:gh-pages:smoldot-browser-demo
+```
+
+## Deploy Smoldot browser demo to IPFS
+
+Before deploying make sure you have a Piñata API key and secret and that you
+have exported them in your shell environment:
+
+```bash
+PINATA_API_KEY=<your key>
+PINATA_API_SECRET=<your secret>
+```
+
+You can then deploy to IPFS like so:
+
+```bash
+yarn deploy:ipfs:smoldot-browser-demo
+```
 
 ## Working with this repository
 
@@ -79,11 +120,11 @@ Read more about it here: https://classic.yarnpkg.com/en/docs/workspaces/
 To add new dependencies, please use the following syntax:
 
 ```
-$ yarn workspace [module name from package.json] add your-desired-npm-package
+yarn workspace [module name from package.json] add your-desired-npm-package
 ```
 Example to add Jest to the Burnr Wallet:
 ```
-$ yarn workspace @substrate/burnr add jest
+yarn workspace @substrate/burnr add jest
 ```
 
 Also see https://classic.yarnpkg.com/en/docs/cli/workspace/

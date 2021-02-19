@@ -2,8 +2,8 @@
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
     "baseUrl": "./",
-    "outDir": "dist",
-    "lib": [ "es6", "dom" ],
+    "outDir": "./dist",
+    "lib": ["es6", "dom"],
     "target": "esnext",
     "sourceMap": true,
     "declaration": true,
@@ -12,7 +12,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "module": "es2015"
+    "module": "ES2015"
   },
   "include": ["src"]
 }
