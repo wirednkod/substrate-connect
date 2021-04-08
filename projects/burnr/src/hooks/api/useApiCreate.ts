@@ -1,24 +1,17 @@
 // SPDX-License-Identifier: Apache-2
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 
 import { useEffect, useState } from 'react';
 import { ApiPromise, WsProvider } from '@polkadot/api';
-
+import { Detector }  from '@substrate/connect';
 import { ALL_PROVIDERS } from '../../utils/constants';
 import { LazyProvider } from '../../utils/types'; 
-import { useIsMountedRef, useLocalStorage } from '../../hooks';
+import { useIsMountedRef, useLocalStorage } from '..';
+import westend from '../../../public/assets/westend.json';
 
-/**  This part isn't usable until the issues in the Substrate Light CLient implementation have been fixed **/
-// import {
-//   kusama,
-//   LightClient,
-//   polkadot,
-//   polkadotLocal,
-//   WasmProvider,
-//   westend,
-// } from '@substrate/connect';
-
-console.log('ALL_PROVIDERS', ALL_PROVIDERS)
-
+console.log('ALL_PROVIDERS: ', ALL_PROVIDERS)
 
 export default function useApiCreate (): ApiPromise {
   const [api, setApi] = useState<ApiPromise>({} as ApiPromise);
@@ -27,11 +20,19 @@ export default function useApiCreate (): ApiPromise {
   const [provider] = useState<LazyProvider>(ALL_PROVIDERS[localEndpoint] || ALL_PROVIDERS['Polkadot-WsProvider']);
   const  mountedRef = useIsMountedRef();
 
-  // @TODO Make dynamic once @substrate/connect is implemented
-  // const instantiated = provider.source === 'browser' ? new WasmProvider(polkadotLocal()) : new WsProvider(provider.endpoint);
-
   useEffect((): void => {
-    ApiPromise
+    const choseSmoldot = async () => {
+      try {
+        const chainSpec = JSON.stringify(westend);
+        const detect = new Detector('westend', chainSpec);
+        const api = await detect.connect();
+        mountedRef.current && setApi(api);
+      } catch (err) {
+        console.log('A wild error appeared:', err);
+      }
+    }
+
+    localEndpoint !== 'Westend-WsProvider' && ApiPromise
       .create({
         provider: new WsProvider(provider.endpoint),
         types: {}
@@ -41,10 +42,12 @@ export default function useApiCreate (): ApiPromise {
         console.log("API api", api);
         mountedRef.current && setApi(api);
       })
-      .catch((): void => {
-        console.error
+      .catch((err): void => {
+        console.error(err);
       });
-  }, [mountedRef, provider.endpoint]);
+
+      localEndpoint === 'Westend-WsProvider' && choseSmoldot();
+  }, [mountedRef, provider.endpoint, localEndpoint]);
 
   return api;
 }

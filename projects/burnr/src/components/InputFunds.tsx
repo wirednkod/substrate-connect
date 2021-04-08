@@ -1,24 +1,28 @@
-import React, { ChangeEvent, MouseEvent } from 'react';
-
+import React, { ChangeEvent, MouseEvent, SetStateAction, Dispatch } from 'react';
 import { Button, Grid, TextField, Box, InputAdornment } from '@material-ui/core';
+import BN from 'bn.js';
 
 interface Props {
-  total: number;
+  total: BN;
   currency: string;
   hidePercentages?: boolean;
+  setAmount: Dispatch<SetStateAction<string>>;
 }
 
 // @TODO bn.js
 
-const InputFunds: React.FunctionComponent<Props> = ({ total, currency, hidePercentages = false }: Props) => {
-	const [value, setValue] = React.useState<number | ''>('');
+const InputFunds: React.FunctionComponent<Props> = ({ total, setAmount, currency, hidePercentages = false }: Props) => {
+	// const [value, setValue] = React.useState<string>('');
+	const [showValue, setShowValue] = React.useState<string>('');
 	const handleChangeButton = (e: MouseEvent) => {
-		setValue(parseInt((e.currentTarget as HTMLButtonElement).value) * total);
+		const val = ((new BN((e.currentTarget as HTMLButtonElement).value)).mul(total)).toString();
+		setAmount(val);
 		document.getElementById('SendFundsAmountField')?.focus();
 	};
 	const handleChange = (e: ChangeEvent) => {
-		const value = parseInt((e.currentTarget as HTMLTextAreaElement).value);
-		!isNaN(value) && setValue(value);
+		const value = ((e.currentTarget as HTMLButtonElement).value).replace(/\D/g,'');
+			setShowValue(value !== '' ? value : '');
+			setAmount(value !== '' ? value : '0');
 	};
 
 	// @TODO focus/blur TextField and %Buttons at the same time in a React way
@@ -26,7 +30,6 @@ const InputFunds: React.FunctionComponent<Props> = ({ total, currency, hidePerce
 	const [focus, setFocus] = React.useState<boolean>(false);
 	const handleFocus = () => {
 		setFocus(!focus);
-
 	};
 
 	return (
@@ -34,7 +37,7 @@ const InputFunds: React.FunctionComponent<Props> = ({ total, currency, hidePerce
 			<Box marginBottom={1}>
 				<TextField
 					id='SendFundsAmountField'
-					value={value}
+					value={showValue}
 					label="Amount"
 					fullWidth
 					variant="outlined"

@@ -3,6 +3,8 @@ import { uniqueNamesGenerator, Config, starWars } from 'unique-names-generator';
 import { mnemonicGenerate } from '@polkadot/util-crypto';
 import { Keyring } from '@polkadot/api';
 
+const keyring = new Keyring({ type: 'sr25519' });
+
 const config: Config = {
 	dictionaries: [starWars]
 }
@@ -31,7 +33,6 @@ export const downloadFile = (fileName: string, data: string, type: string): void
 
   export const createLocalStorageAccount = (): LocalStorageAccountCtx => {
     const mnemonic = mnemonicGenerate(12);
-    const keyring = new Keyring();
     const pair = keyring.addFromMnemonic(mnemonic, { name: uniqueNamesGenerator(config) }, 'sr25519');
     // const pair = keyring.addFromUri('//Charlie', { name: 'Charlie default' });
     return {
@@ -44,3 +45,17 @@ export const downloadFile = (fileName: string, data: string, type: string): void
   }
 
   export const isEmpty = (obj: unknown): boolean => ((typeof obj === 'object' && obj !== null) && Object.keys(obj).length === 0 && obj.constructor === Object)
+
+  export const copyToClipboard = (text: string): void => {
+    const dummy = document.createElement("textarea");
+    document.body.appendChild(dummy);
+    dummy.value = text;
+    dummy.select();
+    document.execCommand("copy");
+    document.body.removeChild(dummy);
+}
+
+export const getKeyring = (): Keyring => keyring;
+
+export const transformCurrency = (currencyLevel: string, currency: string): string =>
+    (currencyLevel !== '-') ? currencyLevel.concat(currency) : currency;

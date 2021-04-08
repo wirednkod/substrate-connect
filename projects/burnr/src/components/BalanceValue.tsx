@@ -3,19 +3,24 @@ import React from 'react';
 import { makeStyles, Theme } from '@material-ui/core/styles';
 import { Box, Typography } from '@material-ui/core';
 import { SizeScale } from '../utils/types';
+import { transformCurrency } from '../utils/utils';
 import { CSSProperties } from '@material-ui/core/styles/withStyles';
+import { Balance } from '@polkadot/types/interfaces';
+import { formatBalance } from '@polkadot/util';
+import useApi from '../hooks/api/useApi';
 
 interface Props extends SizeScale {
-	value: number | string;
+	value: Balance;
+	isVisible: boolean;
 	unit?: string;
 	style?: CSSProperties;
 }
 interface StyleProps {
   colored?: boolean;
+  visible?: boolean;
 }
 
 // @TODO get token codes from api
-
 const useStyles = makeStyles((theme: Theme) => ({
 	root: {
 		display: 'inline-flex',
@@ -33,19 +38,27 @@ const useStyles = makeStyles((theme: Theme) => ({
 				? theme.palette.getContrastText(theme.palette.primary.light)
 				: theme.palette.text.primary,
 	},
+	blur: {
+		filter: (props: StyleProps) =>
+			props.visible
+				? 'unset'
+				: 'blur(5px)'
+	}
 }));
 
-const BalanceValue: React.FunctionComponent<Props> = ({ value = '', unit = '', size, style }: Props) => {
-	const isBalance = typeof value === 'number';
-	const isColored = (isBalance && value >= 0 || (!isBalance && typeof value === 'string' && parseFloat(value) > 0));
-	const classes = useStyles({ colored: isColored });
+const BalanceValue: React.FunctionComponent<Props> = ({ value, isVisible, unit = '', size, style }: Props) => {
+	const api = useApi();
+	const fBalance = formatBalance(value, { withSi: false });
+	const fUnit = transformCurrency(formatBalance.calcSi(value.toString(), api.registry.chainDecimals[0]).value, unit);
+	const isColored = parseInt(fBalance) >= 0;
+	const classes = useStyles({ colored: isColored, visible: isVisible });
 
 	const TypographyVariant = size === 'large' ? 'subtitle1' : 'subtitle2';
 
 	return  (
 		<Box component='span' className={classes.root} style={style}>
-			<Typography variant={TypographyVariant}>
-				{`${value} ${unit}`}
+			<Typography variant={TypographyVariant} className={classes.blur} >
+				{`${fBalance} ${fUnit}`}
 			</Typography>
 		</Box>
 	);

@@ -3,6 +3,7 @@
 .idea
 .vscode
 .cache/
+.parcel-cache/
 yarn-error.log*
 
 # dependencies
@@ -11,3 +12,5 @@ yarn-error.log*
 # misc
 .DS_Store
 
+# testing
+/coverage

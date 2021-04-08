@@ -1,4 +1,9 @@
-import sinon from 'sinon';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-empty-function */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { SmoldotClient, SmoldotOptions } from 'smoldot';
 
 type RpcResponder = (request: string) => string;
@@ -59,15 +64,17 @@ export const devChainHealthResponder = (requestJSON: string) => {
 const fakeRpcSend = (options: SmoldotOptions, responder: RpcResponder, healthResponder: RpcResponder) => {
   return (rpcRequest: string) => {
     process.nextTick(() => {
-      if (/system_health/.test(rpcRequest)) {
-        options.json_rpc_callback(healthResponder(rpcRequest));
-        return;
-      }
+      if (options && options.json_rpc_callback) {
+        if (/system_health/.test(rpcRequest)) {
+          options.json_rpc_callback(healthResponder(rpcRequest));
+          return;
+        }
 
-      // non-health reponse
-      options.json_rpc_callback(responder(rpcRequest))
-      if (/(?<!un)[sS]ubscribe/.test(rpcRequest)) {
+        // non-health reponse
         options.json_rpc_callback(responder(rpcRequest))
+        if (/(?<!un)[sS]ubscribe/.test(rpcRequest)) {
+          options.json_rpc_callback(responder(rpcRequest))
+        }
       }
     });
   };
@@ -79,6 +86,7 @@ export const mockSmoldot = (responder: RpcResponder, healthResponder = healthyRe
   return {
     start: async (options: SmoldotOptions): Promise<SmoldotClient> => {
       return Promise.resolve({
+        terminate: () => {},
         // fake the async reply by using the reponder to format
         // a reply via options.json_rpc_callback
         send_json_rpc: fakeRpcSend(options, responder, healthResponder)
@@ -93,6 +101,7 @@ export const smoldotSpy = (responder: RpcResponder, rpcSpy: any, healthResponder
   return {
     start: async (options: SmoldotOptions): Promise<SmoldotClient> => {
       return Promise.resolve({
+        terminate: () => {},
         send_json_rpc: (rpc: string) => {
           // record the message call
           rpcSpy(rpc);

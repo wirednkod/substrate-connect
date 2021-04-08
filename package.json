@@ -6,17 +6,20 @@
   "author": "Parity Team <admin@parity.io>",
   "maintainers": [
     "Stefanie Doll <stefie@parity.io>",
-    "Sveta Goldstein <sveta@parity.io>"
+    "Sveta Goldstein <sveta@parity.io>",
+    "Raoul Millais <raoul@parity.io>",
+    "Nikolaos Kontakis <nikolaos@parity.io"
   ],
   "license": "GPL-3.0-only",
   "private": true,
   "workspaces": [
-    "packages/module",
-    "packages/smoldot-provider",
-    "projects/*"
+    "packages/connect",
+    "projects/extension",
+    "projects/smoldot-browser-demo",
+    "projects/burnr"
   ],
   "scripts": {
-    "clean": " yarn workspaces run clean && rimraf node_modules",
+    "clean": " yarn workspaces run clean && rimraf node_modules && rimraf .parcel-cache",
     "lint": "yarn workspaces run lint",
     "build": "yarn workspaces run build",
     "test": "yarn workspaces run test",
@@ -25,7 +28,8 @@
     "dev:smoldot-extension": "yarn workspace @substrate/smoldot-extension run dev",
     "deploy:gh-pages:smoldot-browser-demo": "yarn workspace @substrate/smoldot-browser-demo run deploy:gh-pages",
     "deploy:ipfs:smoldot-browser-demo": "yarn workspace @substrate/smoldot-browser-demo run deploy:ipfs",
-    "postinstall": "husky install"
+    "postinstall": "husky install",
+    "connect-tester": "yarn workspace @substrate/extension-provider run build && yarn workspace @substrate/connect run build && yarn run dev:smoldot-browser-demo"
   },
   "devDependencies": {
     "copyfiles": "^2.3.0",
