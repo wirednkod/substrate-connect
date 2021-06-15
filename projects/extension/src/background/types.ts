@@ -1,12 +1,6 @@
 import { AppMediator } from './AppMediator';
-// Messages that come from the app
-export type AppMessageType = 'associate' | 'rpc';
-
-export interface AppMessage {
-  type: AppMessageType;
-  payload: string; // smoldot name / json / message_id / subscription_id
-  subscription?: boolean;
-}
+import EventEmitter from 'eventemitter3';
+import StrictEventEmitter from 'strict-event-emitter-types';
 
 export interface InitAppNameSpec {
   id: string,
@@ -15,27 +9,22 @@ export interface InitAppNameSpec {
   uAppName: string,
   chainSpec?: string
 }
-export interface Message extends MessageEvent {
-  data: {
-    error?: string;
-    id: string;
-    origin: string;
-    response?: string;
-    subscription?: string;
-    chainName?: string;
-    chainSpec?: string;
-  }
+
+export type AppState = 'connected' | 'disconnecting' | 'disconnected';
+
+export interface AppInfo {
+  name: string;
+  tabId: number;
+  networks: NetworkState[];
 }
 
-// Messages that we send to the app down through the port
-export type ExtensionMessageType = 'error' | 'rpc';
-
-export interface ExtensionMessage {
-  type: ExtensionMessageType;
-  payload: string;
+export interface State {
+  apps: AppInfo[];
 }
 
-export type AppState = 'connected' | 'ready' | 'disconnecting' | 'disconnected';
+export interface NetworkState {
+  name: string;
+}
 
 export interface MessageIDMapping {
   readonly appID: number | undefined;
@@ -47,6 +36,12 @@ export interface SubscriptionMapping {
   subID: number | string  | undefined;
   method: string;
 }
+
+export interface StateEvents {
+  stateChanged: State;
+}
+
+export type StateEmitter = StrictEventEmitter<EventEmitter, StateEvents>;
 
 export interface ConnectionManagerInterface {
   hasClientFor: (name: string) => boolean;

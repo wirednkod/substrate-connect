@@ -1,8 +1,3 @@
-// Copyright 2018-2021 @paritytech/substrate-connect authors & contributors
-// This software may be modified and distributed under the terms
-// of the Apache-2.0 license. See the LICENSE file for details.
-
-import * as smoldot from 'smoldot';
 import {RpcCoder} from '@polkadot/rpc-provider/coder';
 import {
   JsonRpcResponse,
@@ -13,11 +8,20 @@ import {
 } from '@polkadot/rpc-provider/types';
 import { logger } from '@polkadot/util';
 import EventEmitter from 'eventemitter3';
-import { isUndefined } from '../utils';
+import { isUndefined } from '../utils/index.js';
+import {
+  MessageFromManager,
+  ProviderMessageData,
+  ExtensionMessage,
+  ExtensionMessageData,
+  provider
+} from '@substrate/connect-extension-protocol';
 
-const EXTENSION_ORIGIN = 'extension-provider';
+const CONTENT_SCRIPT_ORIGIN = 'content-script';
+const EXTENSION_PROVIDER_ORIGIN = 'extension-provider';
 
-const l = logger(EXTENSION_ORIGIN);
+const l = logger(EXTENSION_PROVIDER_ORIGIN);
+
 
 interface RpcStateAwaiting {
   callback: ProviderInterfaceCallback;
@@ -33,7 +37,7 @@ interface SubscriptionHandler {
 }
 
 interface StateSubscription extends SubscriptionHandler {
-    method: string;
+  method: string;
 }
 
 const ANGLICISMS: { [index: string]: string } = {
@@ -42,47 +46,96 @@ const ANGLICISMS: { [index: string]: string } = {
   chain_unsubscribeFinalisedHeads: 'chain_unsubscribeFinalizedHeads'
 };
 
+/**
+ * The ExtensionProvider allows interacting with a smoldot-based WASM light
+ * client running in a browser extension.  It is not designed to be used
+ * directly.  You should use the `\@substrate/connect` package.
+ */
 export class ExtensionProvider implements ProviderInterface {
   readonly #coder: RpcCoder = new RpcCoder();
   readonly #eventemitter: EventEmitter = new EventEmitter();
   readonly #handlers: Record<string, RpcStateAwaiting> = {};
   readonly #subscriptions: Record<string, StateSubscription> = {};
   readonly #waitingForId: Record<string, JsonRpcResponse> = {};
-  #client: smoldot.SmoldotClient | undefined = undefined;
   #isConnected = false;
 
+  #appName: string;
   #chainName: string;
 
-   public constructor(name: string) {
-     this.#chainName = name;
-   }
+  public constructor(appName: string, chainName: string) {
+    this.#appName = appName;
+    this.#chainName = chainName;
+  }
 
   /**
-   * @description Lets polkadot-js know we support subscriptions
-   * @summary `true`
+   * name
+   *
+   * @returns the name of this app to be used by the extension for display
+   * purposes.  
+   *
+   * @remarks Apps are expected to make efforts to make this name reasonably 
+   * unique.
+   */
+  public get name(): string {
+    return this.#appName;
+  }
+
+  /**
+   * chainName
+   *
+   * @returns the name of the chain this `ExtensionProvider` is talking to.
+   */
+  public get chainName(): string {
+    return this.#chainName;
+  }
+
+  /**
+   * Lets polkadot-js know we support subscriptions
+   *
+   * @remarks Always returns `true` - this provider supports subscriptions.
+   * PolkadotJS uses this internally.
    */
   public get hasSubscriptions(): boolean {
     return true;
   }
 
   /**
-   * @description Returns a clone of the object
-   * @summary throws an error as this is not supported.
+   * clone
+   *
+   * @remarks This method is not supported
+   * @throws {@link Error}
    */
   public clone(): ExtensionProvider {
     throw new Error('clone() is not supported.');
   }
 
-  #handleRpcReponse = (res: string): void => {
-    l.debug(() => ['received', res]);
-    const response = JSON.parse(res) as JsonRpcResponse;
+  #handleMessage = (data: ExtensionMessageData): void => {
+    if (data.disconnect && data.disconnect === true) {
+      this.#isConnected = false;
+      this.emit('disconnected');
+      return;
+    }
 
-    return isUndefined(response.method)
-      ? this.#onMessageResult(response)
-      : this.#onMessageSubscribe(response);
+    const message = data.message as MessageFromManager;
+    if (message.type === 'error') {
+      return this.emit('error', new Error(message.payload));
+    }
+
+    if (message.type === 'rpc') {
+      const rpcString = message.payload;
+      l.debug(() => ['received', rpcString]);
+      const response = JSON.parse(rpcString) as JsonRpcResponse;
+
+      return isUndefined(response.method)
+        ? this.#onMessageResult(response)
+        : this.#onMessageSubscribe(response);
+    }
+
+    const errorMessage =`Unrecognised message type from extension ${message.type}`;
+    return this.emit('error', new Error(errorMessage));
   }
 
- #onMessageResult = (response: JsonRpcResponse): void => {
+  #onMessageResult = (response: JsonRpcResponse): void => {
     const handler = this.#handlers[response.id];
 
     if (!handler) {
@@ -143,21 +196,25 @@ export class ExtensionProvider implements ProviderInterface {
   }
 
   /**
-   * @description "Connect" the WASM client - starts the smoldot WASM client
+   * "Connect" to the extension - sends a message to the `ExtensionMessageRouter`
+   * asking it to connect to the extension background.
+   *
+   * @returns a resolved Promise 
+   * @remarks this is async to fulfill the interface with PolkadotJS
    */
   public connect(): Promise<void> {
-    const initData = {
-      id: 1,
-      message: JSON.stringify({
-        type: 'associate',
-        payload: this.#chainName
-      }),
-      origin: EXTENSION_ORIGIN
+    const connectMsg: ProviderMessageData = {
+      appName: this.#appName,
+      chainName: this.#chainName,
+      action: 'connect',
+      origin: EXTENSION_PROVIDER_ORIGIN
     }
-    window.postMessage(initData, '*');
-    window.addEventListener('message', ({data}) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      this.#handleRpcReponse(data?.message);
+    provider.send(connectMsg);
+    provider.listen(({data}: ExtensionMessage) => {
+      if (data.origin && data.origin === CONTENT_SCRIPT_ORIGIN) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        this.#handleMessage(data);
+      }
     });
     this.#isConnected = true;
     this.emit('connected');
@@ -166,23 +223,34 @@ export class ExtensionProvider implements ProviderInterface {
   }
 
   /**
-   * @description Manually "disconnect" - drops the reference to the WASM client
+   * Manually "disconnect" - sends a message to the `ExtensionMessageRouter`
+   * telling it to disconnect the port with the background manager.
    */
   // eslint-disable-next-line @typescript-eslint/require-await
   public async disconnect(): Promise<void> {
-    console.log('this wont be implemented');
+    const disconnectMsg: ProviderMessageData = {
+      appName: this.#appName,
+      chainName: this.#chainName,
+      action: 'disconnect',
+      origin: EXTENSION_PROVIDER_ORIGIN
+    };
+
+    provider.send(disconnectMsg);
+    this.#isConnected = false;
+    this.emit('disconnected');
   }
 
   /**
-   * @summary Whether the node is connected or not.
-   * @return {boolean} true if connected
+   * Whether the node is connected or not.
+   * 
+   * @returns true - if connected otherwise false
    */
   public get isConnected (): boolean {
     return this.#isConnected;
   }
 
   /**
-   * @summary Listen to provider events - in practice the smoldot provider only
+   * Listen to provider events - in practice the smoldot provider only
    * emits a `connected` event after successfully starting the smoldot client
    * and `disconnected` after `disconnect` is called.
    * @param type - Event
@@ -200,10 +268,11 @@ export class ExtensionProvider implements ProviderInterface {
   }
 
   /**
-   * @summary Send an RPC request  the wasm client
-   * @param method The RPC methods to execute
-   * @param params Encoded paramaters as applicable for the method
-   * @param subscription Subscription details (internally used by `subscribe`)
+   * Send an RPC request  the wasm client
+   *
+   * @param method - The RPC methods to execute
+   * @param params - Encoded paramaters as applicable for the method
+   * @param subscription - Subscription details (internally used by `subscribe`)
    */
   public async send(
     method: string,
@@ -213,43 +282,46 @@ export class ExtensionProvider implements ProviderInterface {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
     return new Promise((resolve, reject): void => {
-        const json = this.#coder.encodeJson(method, params);
-        const id = this.#coder.getId();
+      const json = this.#coder.encodeJson(method, params);
+      const id = this.#coder.getId();
 
-        const callback = (error?: Error | null, result?: unknown): void => {
-          error
-            ? reject(error)
-            : resolve(result);
-        };
+      const callback = (error?: Error | null, result?: unknown): void => {
+        error
+          ? reject(error)
+          : resolve(result);
+      };
 
-        l.debug(() => ['calling', method, json]);
+      l.debug(() => ['calling', method, json]);
 
-        this.#handlers[id] = {
-          callback,
-          method,
-          subscription
-        };
+      this.#handlers[id] = {
+        callback,
+        method,
+        subscription
+      };
 
-        window.postMessage({
-          id: Math.random(),
-          message: JSON.stringify({
-            type: 'rpc',
-            payload: json,
-            subscription: !!subscription
-          }),
-          origin: EXTENSION_ORIGIN
-        }, '*');
+      const rpcMsg: ProviderMessageData = {
+        appName: this.#appName,
+        chainName: this.#chainName,
+        action: 'forward',
+        message: {
+          type: 'rpc',
+          payload: json,
+          subscription: !!subscription
+        },
+        origin: EXTENSION_PROVIDER_ORIGIN
+      }
+      provider.send(rpcMsg);
     });
   }
 
   /**
-   * @name subscribe
-   * @summary Allows subscribing to a specific event.
-   * @param  {string}                     type     Subscription type
-   * @param  {string}                     method   Subscription method
-   * @param  {any[]}                      params   Parameters
-   * @param  {ProviderInterfaceCallback}  callback Callback
-   * @return {Promise<number|string>}     Promise resolving to the id of the subscription you can use with [[unsubscribe]].
+   * Allows subscribing to a specific event.
+   *
+   * @param type     - Subscription type
+   * @param method   - Subscription method
+   * @param params   - Parameters
+   * @param callback - Callback
+   * @returns Promise  - resolves to the id of the subscription you can use with [[unsubscribe]].
    *
    * @example
    * <BR>
@@ -279,7 +351,12 @@ export class ExtensionProvider implements ProviderInterface {
   }
 
   /**
-   * @summary Allows unsubscribing to subscriptions made with [[subscribe]].
+   * Allows unsubscribing to subscriptions made with [[subscribe]].
+   *
+   * @param type   - Subscription type
+   * @param method - Subscription method
+   * @param id     - Id passed for send parameter
+   * @returns Promise resolving to whether the unsunscribe request was successful.
    */
   public async unsubscribe(
     type: string,

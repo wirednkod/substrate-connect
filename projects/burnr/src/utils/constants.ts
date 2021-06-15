@@ -83,7 +83,7 @@ export const REMOTE_PROVIDERS: Record<string, LazyProvider> = {
   'Local-Polkadot-WsProvider': {
     description: `Local node running on ${endpoints.local}`,
     id: 'Local-Polkadot-WsProvider',
-    network: 'Local Polkadot Network',
+    network: 'Local Network',
     node: 'light',
     source: 'remote',
     endpoint: endpoints.local,
@@ -92,30 +92,33 @@ export const REMOTE_PROVIDERS: Record<string, LazyProvider> = {
       Promise.resolve(new WsProvider(endpoints.local)),
     transport: 'WsProvider',
   },
-  'Polkadot-WsProvider': {
-    description: 'Remote node hosted by W3F',
-    id: 'Polkadot-WsProvider',
-    network: 'Polkadot',
-    node: 'light',
-    source: 'remote',
-    endpoint: endpoints.polkadot,
-    client: 'Websocket remote',
-    start: (): Promise<ProviderInterface> =>
-      Promise.resolve(new WsProvider(endpoints.polkadot)),
-    transport: 'WsProvider',
-  },
-  'Kusama-WsProvider': {
-    description: 'Remote node hosted by W3F',
-    id: 'Kusama-WsProvider',
-    network: 'Kusama',
-    node: 'light',
-    source: 'remote',
-    endpoint: endpoints.kusama,
-    client: 'Websocket remote',
-    start: (): Promise<ProviderInterface> =>
-      Promise.resolve(new WsProvider(endpoints.kusama)),
-    transport: 'WsProvider',
-  },
+  /* DEACTIVATE LIVE NETWORKS - This is for ensuring that there will not be any
+  ** problems and loss of funds on the burnr wallet with live networks
+  */
+  // 'Polkadot-WsProvider': {
+  //   description: 'Remote node hosted by W3F',
+  //   id: 'Polkadot-WsProvider',
+  //   network: 'Polkadot',
+  //   node: 'light',
+  //   source: 'remote',
+  //   endpoint: endpoints.polkadot,
+  //   client: 'Websocket remote',
+  //   start: (): Promise<ProviderInterface> =>
+  //     Promise.resolve(new WsProvider(endpoints.polkadot)),
+  //   transport: 'WsProvider',
+  // },
+  // 'Kusama-WsProvider': {
+  //   description: 'Remote node hosted by W3F',
+  //   id: 'Kusama-WsProvider',
+  //   network: 'Kusama',
+  //   node: 'light',
+  //   source: 'remote',
+  //   endpoint: endpoints.kusama,
+  //   client: 'Websocket remote',
+  //   start: (): Promise<ProviderInterface> =>
+  //     Promise.resolve(new WsProvider(endpoints.kusama)),
+  //   transport: 'WsProvider',
+  // },
   'Westend-WsProvider': {
     description: 'Remote node hosted by W3F',
     id: 'Westend-WsProvider',

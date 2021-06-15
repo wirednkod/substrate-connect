@@ -1,7 +1,3 @@
-// Copyright 2018-2021 @paritytech/substrate-connect authors & contributors
-// This software may be modified and distributed under the terms
-// of the Apache-2.0 license. See the LICENSE file for details.
-
 import {RpcCoder} from '@polkadot/rpc-provider/coder';
 import {
   JsonRpcResponse,
@@ -13,9 +9,8 @@ import {
 import { assert, logger } from '@polkadot/util';
 import EventEmitter from 'eventemitter3';
 import * as smoldot from 'smoldot';
-import database, { Database } from './Database';
-import { HealthCheckError } from './errors';
-import { isUndefined } from '../utils';
+import { HealthCheckError } from './errors.js';
+import { isUndefined } from '../utils/index.js';
 
 const l = logger('smoldot-provider');
 
@@ -42,7 +37,6 @@ interface HealthResponse {
   shouldHavePeers: boolean;
 }
 
-
 const ANGLICISMS: { [index: string]: string } = {
   chain_finalisedHead: 'chain_finalizedHead',
   chain_subscribeFinalisedHeads: 'chain_subscribeFinalizedHeads',
@@ -56,9 +50,9 @@ const ANGLICISMS: { [index: string]: string } = {
 const CONNECTION_STATE_PINGER_INTERVAL = 2000;
 
 /**
- * @name SmoldotProvider
+ * SmoldotProvider
  *
- * @description The SmoldotProvider allows interacting with a smoldot-based
+ * The SmoldotProvider allows interacting with a smoldot-based
  * WASM light client.  I.e. without doing RPC to a remote node over HTTP
  * or websockets
  * 
@@ -76,14 +70,14 @@ const CONNECTION_STATE_PINGER_INTERVAL = 2000;
  * ```javascript
  * import readFileSync from 'fs';
  * import Api from '@polkadot/api/promise';
- * import { SmoldotProvider, database } from '../';
+ * import { SmoldotProvider } from '../';
  *
  * const chainSpec = readFileSync('./path/to/polkadot.json');
  * const pp = new SmoldotProvider(chainSpec);
  * const polkadotApi = new Api(pp);
  *
  * const chainSpec = readFileSync('./path/to/kusama.json');
- * const kp = new SmoldotProvider(chainSpec, databse('kusama'));
+ * const kp = new SmoldotProvider(chainSpec);
  * const kusamaApi = new Api(pp);
  * ```
  */
@@ -97,7 +91,6 @@ export class SmoldotProvider implements ProviderInterface {
   #connectionStatePingerId: ReturnType<typeof setInterval> | null;
   #isConnected = false;
   #client: smoldot.SmoldotClient | undefined = undefined;
-  #db: Database;
   // reference to the smoldot module so we can defer loading the wasm client
   // until connect is called
   #smoldot: smoldot.Smoldot;
@@ -108,32 +101,28 @@ export class SmoldotProvider implements ProviderInterface {
   healthPingerInterval = CONNECTION_STATE_PINGER_INTERVAL;
 
    /**
-   * @param {string}   chainSpec  The chainSpec for the WASM client
-   * @param {Database} db         `Database` for saving chain state. Default is detected based on envionnment and 
-   *                              given a generic name.  You must use a unique names if you are connecting to multiple 
-   *                              chains. E.g. `database('polkadot')`
-   * @param {any}      sm         Optional (only used for testing) defaults to the actual smoldot module
+   * @param chainSpec - The chainSpec for the WASM client
+   * @param sm - (only used for testing) defaults to the actual smoldot module
    */
   //eslint-disable-next-line @typescript-eslint/no-explicit-any,@typescript-eslint/explicit-module-boundary-types
-  public constructor(chainSpec: string, db?: Database, sm?: any) {
+  public constructor(chainSpec: string, sm?: any) {
     this.#chainSpec = chainSpec;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     this.#smoldot = sm || smoldot;
-    this.#db = db || database();
     this.#connectionStatePingerId = null;
   }
 
   /**
-   * @description Lets polkadot-js know we support subscriptions
-   * @summary `true`
+   * Lets polkadot-js know we support subscriptions
+   * @returns `true`
    */
   public get hasSubscriptions(): boolean {
     return true;
   }
 
   /**
-   * @description Returns a clone of the object
-   * @summary throws an error as this is not supported.
+   * Returns a clone of the object
+   * @throws throws an error as this is not supported.
    */
   public clone(): SmoldotProvider {
     throw new Error('clone() is not supported.');
@@ -261,23 +250,17 @@ export class SmoldotProvider implements ProviderInterface {
   }
 
   /**
-   * @description "Connect" the WASM client - starts the smoldot WASM client
+   * "Connect" the WASM client - starts the smoldot WASM client
    */
   public connect = async (): Promise<void> => {
     assert(!this.#client && !this.#isConnected, 'Client is already connected');
     try {
       this.#client = await this.#smoldot.start({
-        database_content: this.#db.load(),
-        chain_spec: this.#chainSpec,
-        max_log_level: 3, /* no debug/trace messages */
-        json_rpc_callback: (response: string) => {
+        forbidWs: true, /* suppress console warnings about insecure connections */
+        chainSpecs: [this.#chainSpec],
+        maxLogLevel: 3, /* no debug/trace messages */
+        jsonRpcCallback: (response: string) => {
             this.#handleRpcReponse(response);
-        },
-        database_save_callback: (database_content: string) => { 
-          l.debug('saving database', database_content);
-          if (this.#db) {
-            this.#db.save(database_content);
-          }
         }
       })
       this.#connectionStatePingerId = setInterval(
@@ -288,7 +271,7 @@ export class SmoldotProvider implements ProviderInterface {
   }
 
   /**
-   * @description Manually "disconnect" - drops the reference to the WASM client
+   * Manually "disconnect" - drops the reference to the WASM client
    */
   // eslint-disable-next-line @typescript-eslint/require-await
   public async disconnect(): Promise<void> {
@@ -310,19 +293,19 @@ export class SmoldotProvider implements ProviderInterface {
   }
 
   /**
-   * @summary Whether the node is connected or not.
-   * @return {boolean} true if connected
+   * Whether the node is connected or not.
+   * @returns true if connected
    */
   public get isConnected (): boolean {
     return this.#isConnected;
   }
 
   /**
-   * @summary Listen to provider events - in practice the smoldot provider only
+   * Listen to provider events - in practice the smoldot provider only
    * emits a `connected` event after successfully starting the smoldot client
    * and `disconnected` after `disconnect` is called.
    * @param type - Event
-   * @param sub - Callback
+   * @param sub  - Callback
    */
   public on(
     type: ProviderInterfaceEmitted,
@@ -336,10 +319,10 @@ export class SmoldotProvider implements ProviderInterface {
   }
 
   /**
-   * @summary Send an RPC request  the wasm client
-   * @param method The RPC methods to execute
-   * @param params Encoded paramaters as applicable for the method
-   * @param subscription Subscription details (internally used by `subscribe`)
+   * Send an RPC request  the wasm client
+   * @param method       - The RPC methods to execute
+   * @param params       - Encoded paramaters as applicable for the method
+   * @param subscription - Subscription details (internally used by `subscribe`)
    */
   public async send(
     method: string,
@@ -367,18 +350,18 @@ export class SmoldotProvider implements ProviderInterface {
           subscription
         };
 
-      this.#client.send_json_rpc(json);
+      this.#client.sendJsonRpc(json, 0);
     });
   }
 
   /**
-   * @name subscribe
-   * @summary Allows subscribing to a specific event.
-   * @param  {string}                     type     Subscription type
-   * @param  {string}                     method   Subscription method
-   * @param  {any[]}                      params   Parameters
-   * @param  {ProviderInterfaceCallback}  callback Callback
-   * @return {Promise<number|string>}     Promise resolving to the id of the subscription you can use with [[unsubscribe]].
+   * subscribe
+   * Allows subscribing to a specific event.
+   * @param  type     - Subscription type
+   * @param  method   - Subscription method
+   * @param  params   - Parameters of type any[]
+   * @param  callback - ProviderInterfaceCallback
+   * @returns A promise (Promise\<number|string\>) resolving to the id of the subscription you can use with [[unsubscribe]].
    *
    * @example
    * <BR>
@@ -408,7 +391,7 @@ export class SmoldotProvider implements ProviderInterface {
   }
 
   /**
-   * @summary Allows unsubscribing to subscriptions made with [[subscribe]].
+   * Allows unsubscribing to subscriptions made with [[subscribe]].
    */
   public async unsubscribe(
     type: string,

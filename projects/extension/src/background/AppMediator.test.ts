@@ -1,118 +1,22 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+import { jest } from '@jest/globals';
 import { AppMediator } from './AppMediator';
-import { MockPort, MockConnectionManager } from './mocks';
+import { MockPort, MockConnectionManager } from '../mocks';
 import { JsonRpcResponse } from './types';
 
-describe('AppMediator setup', () => {
-
-  it('initialises correctly', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(true);
-    const am = new AppMediator('test', port,manager);
-    expect(am.name).toBe('test');
-    expect(am.url).toBe(port.sender.url);
-    expect(am.tabId).toBe(port.sender.tab.id);
-  });
-
-});
-
-function associateWithNetwork(am: AppMediator, port: MockPort, network: string) {
-  port.triggerMessage({ type: 'associate', payload: network });
-  expect(am.state).toBe('ready');
-  expect(am.smoldotName).toBe(network);
-
-  // TODO: check that an info message is sent back to the UApp on success
-}
-
-describe('AppMediator - protocol with content script', () => {
-
-  it('becomes ready after associating with a client and can send messages', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(true);
-    const am = new AppMediator('test', port,manager);
-
-    associateWithNetwork(am, port, 'westend');
-
-    port.triggerMessage({ type: 'rpc', payload: '{ "id": 1 }'});
-    expect(am.requests.length).toBe(1);
-  });
-
-  it('emits error when manager does not have client for the network', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(false);
-    new AppMediator('test', port,manager);
-    const network = 'westend';
-
-    port.triggerMessage({ type: 'associate', payload: network });
-    expect(port.postMessage).toBeCalledTimes(1);
-    expect(port.postMessage).toBeCalledWith({ 
-      type: 'error', 
-      payload: `Extension does not have client for ${network}`
-    });
-  });
-
-  it('emits error when recieves RPC message before associated', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(false);
-    const am = new AppMediator('test', port, manager);
-
-    port.triggerMessage({ type: 'rpc', payload: '' });
-    expect(port.postMessage).toBeCalledTimes(1);
-    expect(port.postMessage).toBeCalledWith({ 
-      type: 'error', 
-      payload: `The app is not associated with a blockchain client`
-    });
-  });
-
-  // TODO - test receiving RPC message when state is 'disconnecting' | 'disconnected'
-});
-
-describe('AppMediator regular message processing', () => {
-
-  it('does nothing when it has sent no requests', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(true);
-    const am = new AppMediator('test', port, manager);
-
-    associateWithNetwork(am, port, 'polkadot');
-
-    const message: JsonRpcResponse = { id: 1, jsonrpc: '2.0', result: {} };
-
-    expect(am.processSmoldotMessage(message)).toBe(false);
-  });
-
-  it('remaps the id to the apps id', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(true);
-    const am = new AppMediator('test', port, manager);
-
-    associateWithNetwork(am, port, 'kusama');
-
-    // Fake getting a request from UApp to send an RPC message
-    port.triggerMessage({ 
-      type: 'rpc', 
-      payload: '{"id":1,"jsonrpc":"2.0","method":"state_getStorage","params":["<hash>"]}' 
-    });
-    // should have a request mapping
-    expect(am.cloneRequests().length).toBe(1);
-
-    // Fake an RPC response to the request
-    const message: JsonRpcResponse = { id: manager.lastId, jsonrpc: '2.0', result: {} };
-    expect(am.processSmoldotMessage(message)).toBe(true);
-    // should have removed request mapping
-    expect(am.cloneRequests().length).toBe(0);
-    // should have posted the message back to the UApp with the mapped ID
-    expect(port.postMessage.mock.calls[0][0].payload)
-      .toEqual('{"id":1,"jsonrpc":"2.0","result":{}}');
-  });
-});
-
-function setupAppMediatorWithSubscription(am: AppMediator, port: MockPort, appIDForRequest: number, subID: number) {
+function setupAppMediatorWithSubscription(
+  am: AppMediator,
+  port: MockPort,
+  appIDForRequest: number,
+  subID: number,
+  spyPortPostMessage: unknown) {
   const prevRequestCount = am.cloneRequests().length;
   const prevSubCount = am.cloneSubscriptions().length;
 
   // Fake a message with an RPC request to add a subscription
-  port.triggerMessage({ 
-    type: 'rpc', 
+  port.triggerMessage({
+    type: 'rpc',
     payload: `{"id":${appIDForRequest},"jsonrpc":"2.0","method":"system_health","params":[]}`,
     subscription: true
   });
@@ -125,10 +29,10 @@ function setupAppMediatorWithSubscription(am: AppMediator, port: MockPort, appID
     .toEqual({ appIDForRequest, subID: undefined, method: 'system_health' });
 
   // Fake receiving an RPC response to the subscription request
-  const message: JsonRpcResponse = { 
-    id: pendingRequests[pendingRequests.length - 1].smoldotID, 
-    jsonrpc: '2.0', 
-    result: subID 
+  const message: JsonRpcResponse = {
+    id: pendingRequests[pendingRequests.length - 1].smoldotID,
+    jsonrpc: '2.0',
+    result: subID
   };
   am.processSmoldotMessage(message);
 
@@ -138,75 +42,183 @@ function setupAppMediatorWithSubscription(am: AppMediator, port: MockPort, appID
     .toEqual({ appIDForRequest, subID, method: 'system_health' });
 
   // should send the acknowledgement of the subscription request back to the UApp
-  const msgCalls = port.postMessage.mock.calls;
-  const lastMsg = msgCalls[msgCalls.length - 1][0];
-  expect(lastMsg.payload).toEqual(`{"id":${appIDForRequest},"jsonrpc":"2.0","result":${subID}}`);
+  expect(spyPortPostMessage).toHaveBeenCalledWith({ type: 'rpc', payload: `{"id":${appIDForRequest},"jsonrpc":"2.0","result":${subID}}`});
 }
 
-describe('Appmediator subscription message processing', () => {
+describe("Test AppMediator class", () => {
+  let port: MockPort;
+  let manager: MockConnectionManager;
+  let appMed: AppMediator;
+  let spyManagerRegisterApp: unknown;
+  let spyManagerUnregisterApp: unknown;
+  let spyPortPostMessage: unknown;
+  let spyPortDisconnect: unknown;
   
-  it('tracks and forwards subscriptions', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(true);
-    const am = new AppMediator('test', port, manager);
+  const initFunc = (portStr: string, connManagerFlag: boolean) => {
+    port = new MockPort(portStr);
+    manager = new MockConnectionManager(connManagerFlag);
+    appMed = new AppMediator(port, manager);
+    spyManagerRegisterApp = jest.spyOn(manager, 'registerApp');
+    spyManagerUnregisterApp = jest.spyOn(manager, 'unregisterApp');
+    spyPortDisconnect = jest.spyOn(port, 'disconnect');
+    spyPortPostMessage = jest.spyOn(port, 'postMessage');
+  }
 
-    associateWithNetwork(am, port, 'westend');
+  test('Initialization and getters', () => {
+    initFunc('test-app::westend', true);
+    expect(appMed.name).toBe('test-app::westend');
+    expect(appMed.appName).toBe('test-app');
+    expect(appMed.url).toBe(port.sender.url);
+    expect(appMed.tabId).toBe(port.sender.tab.id);
+    expect(appMed.subscriptions).toEqual([]);
+    expect(appMed.requests).toEqual([]);
+    expect(appMed.state).toEqual('connected');
+  });
+
+  test('Connected  with client and can send messages', () => {
+    initFunc('test-app::westend', true);
+    port.triggerMessage({ type: 'rpc', payload: '{ "id": 1 }'});
+    expect(appMed.requests.length).toBe(1);
+    expect(appMed.state).toBe('connected');
+  });
+  
+  test('Test associate', () => {
+    initFunc('test-app::westend', true);
+    const result = appMed.associate();
+    expect(result).toBe(true);
+    expect(spyManagerRegisterApp).toHaveBeenCalled();
+  });
+
+  test('Connect but given invalid port name', () => {
+    initFunc('test-appwestend', false);
+    const result = appMed.associate();
+    expect(result).toBe(false);
+    expect(spyPortDisconnect).toHaveBeenCalled();
+    expect(spyManagerRegisterApp).not.toHaveBeenCalled();
+    expect(spyPortPostMessage).toHaveBeenCalledWith({ type: 'error', payload: `Invalid port name test-appwestend expected <app_name>::<chain_name>`});
+  });
+
+  test('Try to connect but extension does not have client', () => {
+    initFunc('test-app::westend', false);
+    const result = appMed.associate();
+    expect(result).toBe(false);
+    expect(spyPortDisconnect).toHaveBeenCalled();
+    expect(spyManagerRegisterApp).not.toHaveBeenCalled();
+    expect(spyPortPostMessage).toHaveBeenCalledWith({ type: 'error', payload: `Extension does not have client for westend`});
+  });
+
+  test('Disconnect: happy path', () => {
+    initFunc('test-app::westend', true);
+    appMed.disconnect();
+    expect(appMed.state).toBe('disconnected');
+    expect(spyManagerUnregisterApp).toHaveBeenCalled();
+  });
+
+  describe('ProcessSmoldotMessage tests', () => {
+    test('ProcessSmoldotMessage: happy path', () => {
+      initFunc('test-app::westend', true);
+      port.triggerMessage({ type: 'rpc', payload: '{ "id": 1 }'});
+      const message: JsonRpcResponse = { id: 1, jsonrpc: '2.0', result: {} };
+      const result = appMed.processSmoldotMessage(message);
+      expect(result).toBe(true);
+    });
+
+    test('ProcessSmoldotMessage: request is undefined', () => {
+      initFunc('test-app::westend', true);
+      const message: JsonRpcResponse = { id: 1, jsonrpc: '2.0', result: {} };
+      const result = appMed.processSmoldotMessage(message);
+      expect(result).toBe(false);
+    });
+
+    test('ProcessSmoldotMessage: return false when app is disconnected', () => {
+      console.error = jest.fn()
+      initFunc('test-app::westend', true);
+      const message: JsonRpcResponse = { id: 1, jsonrpc: '2.0', result: {} };
+      appMed.disconnect();
+      const result = appMed.processSmoldotMessage(message);
+      expect(result).toBe(false);
+      expect(console.error).toBeCalledTimes(1);
+      expect(console.error).toBeCalledWith('Asked a disconnected UApp (test-app::westend) to process a message from undefined');
+
+    });
+
+    test('ProcessSmoldotMessage: does nothing when it has sent no requests', () => {
+      initFunc('test-app::westend', true);    
+      const message: JsonRpcResponse = { id: 1, jsonrpc: '2.0', result: {} };
+      const result = appMed.processSmoldotMessage(message);
+      expect(result).toBe(false);
+    });
+
+    test('ProcessSmoldotMessage: remaps the id to the apps id', () => {
+      initFunc('test-app::kusama', true);    
+      
+      // Fake getting a request from UApp to send an RPC message
+      port.triggerMessage({
+        type: 'rpc',
+        payload: '{"id":1,"jsonrpc":"2.0","method":"state_getStorage","params":["<hash>"]}'
+      });
+    
+      // Fake an RPC response to the request
+      const message: JsonRpcResponse = { id: manager.lastId, jsonrpc: '2.0', result: {} };
+      expect(appMed.processSmoldotMessage(message)).toBe(true);
+      // should have posted the message back to the UApp with the mapped ID
+      expect(spyPortPostMessage).toHaveBeenCalledWith({ type: 'rpc', payload: '{"id":1,"jsonrpc":"2.0","result":{}}'});
+    });
+  });
+
+  test('Tracks and forwards subscriptions', () => {
+    initFunc('test-app::westend', true);
 
     const appIDForRequest = 1
     const subscriptionId = 2;
-    setupAppMediatorWithSubscription(am, port, appIDForRequest, subscriptionId);
+    setupAppMediatorWithSubscription(appMed, port, appIDForRequest, subscriptionId, spyPortPostMessage);
 
     // Fake receiving an RPC message for the subscription
-    const subMessage = { 
-      jsonrpc: '2.0', 
+    const subMessage = {
+      jsonrpc: '2.0',
       method: 'system_health',
       params: { subscription: subscriptionId, result: "subscription value" }
     };
-    expect(am.processSmoldotMessage(subMessage)).toBe(true);
+    expect(appMed.processSmoldotMessage(subMessage)).toBe(true);
 
     // should send subcription message back to the UApp unchanged
-    expect(port.postMessage.mock.calls[1][0].payload)
-      .toEqual(JSON.stringify(subMessage));
+    expect(spyPortPostMessage)
+      .toHaveBeenCalledWith({ type: 'rpc', payload: JSON.stringify(subMessage)});
 
     // Fake receiving an RPC message with a subscription ID that is not one of
     // our subscriptions
-    const subMessage2 = { 
-      jsonrpc: '2.0', 
+    const subMessage2 = {
+      jsonrpc: '2.0',
       method: 'system_health',
       params: { subscription: 666, result: "subscription value" }
     };
     // shouldnt process it
-    expect(am.processSmoldotMessage(subMessage2)).toBe(false);
+    expect(appMed.processSmoldotMessage(subMessage2)).toBe(false);
   });
 
-  it('unsubscribes from all subs on disconnect', () => {
-    const port = new MockPort('test');
-    const manager = new MockConnectionManager(true);
-    const am = new AppMediator('test', port, manager);
+  test('Unsubscribes from all subs on disconnect', () => {
+    initFunc('test-app::westend', true);
 
-    associateWithNetwork(am, port, 'westend');
-
-    setupAppMediatorWithSubscription(am, port, 1, 1);
-    setupAppMediatorWithSubscription(am, port, 2, 2);
+    setupAppMediatorWithSubscription(appMed, port, 1, 1, spyPortPostMessage);
+    setupAppMediatorWithSubscription(appMed, port, 2, 2, spyPortPostMessage);
 
     port.triggerDisconnect();
-    expect(am.state).toBe('disconnecting');
-    let pendingRequests = am.cloneRequests();
+    expect(appMed.state).toBe('disconnecting');
+    let pendingRequests = appMed.cloneRequests();
     expect(pendingRequests.length).toBe(2);
 
     // First unsub repsonse
     const unsub1 = { jsonrpc:'2.0', id: pendingRequests[0].smoldotID, result: true };
-    expect(am.processSmoldotMessage(unsub1)).toBe(true);
-    expect(am.state).toBe('disconnecting');
-    pendingRequests = am.cloneRequests();
+    expect(appMed.processSmoldotMessage(unsub1)).toBe(true);
+    expect(appMed.state).toBe('disconnecting');
+    pendingRequests = appMed.cloneRequests();
     expect(pendingRequests.length).toBe(1);
 
     // Second unsub repsonse
     const unsub2 = { jsonrpc:'2.0', id: pendingRequests[0].smoldotID, result: true };
-    expect(am.processSmoldotMessage(unsub2)).toBe(true);
-    expect(am.state).toBe('disconnected');
-    pendingRequests = am.cloneRequests();
+    expect(appMed.processSmoldotMessage(unsub2)).toBe(true);
+    expect(appMed.state).toBe('disconnected');
+    pendingRequests = appMed.cloneRequests();
     expect(pendingRequests.length).toBe(0);
   });
-
 });

@@ -1,89 +1,84 @@
-import React, { useContext, useState, useEffect } from 'react';
-import { Grid, Paper, Divider, IconButton, Box, makeStyles, Theme } from '@material-ui/core';
+import React, { useState, useEffect } from 'react';
+import { Paper, IconButton, Box, makeStyles, CircularProgress } from '@material-ui/core';
 import VisibilityIcon from '@material-ui/icons/Visibility';
 import VisibilityOffIcon from '@material-ui/icons/VisibilityOff';
-import { AccountContext, BalanceVisibleContext } from './utils/contexts';
-import { NavTabs, AccountCard, BalanceValue, Bg, AccountMenu } from './components';
+import { NavTabs, AccountCard, BalanceValue, BurnrDivider, AccountMenu } from './components';
+
+import { BalanceVisibleContext } from './utils/contexts';
+import { LocalStorageAccountCtx } from './utils/types';
 import { useBalance, useLocalStorage } from './hooks';
 
-const useStyles = makeStyles((theme: Theme) => ({
-		paperAccount: {
-			borderTopLeftRadius: theme.spacing(0.5),
-		},
-	})
+const useStyles = makeStyles(theme => ({
+    paperAccount: {
+      borderTopLeftRadius: theme.spacing(0.5),
+    },
+    loadingPaper: {
+      height: 'calc(100vh - 150px)',
+      textAlign: 'center',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center'
+    }
+  })
 );
 
-function Home ():  React.ReactElement {
-	const [localBalance, setLocalBalance] = useLocalStorage('balanceVisibility');
-	const [balanceVisibility, setBalanceVisibility] = useState<boolean>(localBalance !== 'false');
-	const { account } = useContext(AccountContext);
-	const classes = useStyles();
-	// TODO: Need to identify if this will be eventually used or not
-	// Im not sure if the useUserInfo will/should be used
-	// const userInfo = useUserInfo(account.userAddress);
-	const balanceArr = useBalance(account.userAddress);
-	const balance = balanceArr[1];
-	useEffect((): void => {
-		setLocalBalance(balanceVisibility ? 'true' : 'false')
-	}, [balanceVisibility, setLocalBalance])
+interface Props {
+  account?: LocalStorageAccountCtx;
+  loader?: boolean;
+}
 
-	return (
-		<BalanceVisibleContext.Provider value={{ balanceVisibility, setBalanceVisibility }}>
-			<Bg />
-			<Divider/>
-			<Paper square className={classes.paperAccount}>
-				<Box paddingY={1} paddingX={2}>
-					<Grid container alignItems='center' spacing={1}>
-						<Grid item xs={6}>
-							{
-								account?.userAddress &&
-								<Grid container wrap='nowrap' alignItems='center'>
-									<Grid item>
-										<AccountCard
-											account={{
-												address: account?.userAddress,
-												name: account?.userName
-											}}
-										/>
-									</Grid>
-									<Grid item>
-										<AccountMenu />
-									</Grid>
-								</Grid>
-							}
-						</Grid>
-						<Grid item xs={6}>
-							<Grid
-								container
-								spacing={1}
-								wrap='nowrap'
-								alignItems='center'
-							>
-								<Grid item xs={12}>
-									<BalanceValue
-										isVisible={balanceVisibility}
-										value={balance}
-										size='large'
-										style={{ width: '100%', justifyContent: 'flex-end' }}
-									/>
-								</Grid>
-								<Grid item>
-									<IconButton style={{ borderRadius: 4 }} onClick={() => setBalanceVisibility(!balanceVisibility)}>
-										{balanceVisibility ?
-											(<VisibilityIcon />) :
-											(<VisibilityOffIcon />)
-										}
-									</IconButton>
-								</Grid>
-							</Grid>
-						</Grid>
-					</Grid>
-				</Box>
-			</Paper>
-			<Divider/>
-			<NavTabs />
-		</BalanceVisibleContext.Provider>
-	);
+const Home: React.FunctionComponent<Props> =  ({ account, loader }: Props) => {
+  const [localBalance, setLocalBalance] = useLocalStorage('balanceVisibility');
+  const [balanceVisibility, setBalanceVisibility] = useState<boolean>(localBalance !== 'false');
+  const classes = useStyles();
+  const balanceArr = useBalance(account?.userAddress || '');
+  const balance = balanceArr[1];
+  const unit = balanceArr[3];
+  useEffect((): void => {
+    setLocalBalance(balanceVisibility ? 'true' : 'false')
+  }, [balanceVisibility, setLocalBalance])
+
+  return loader ? (
+    <Paper className={classes.loadingPaper}>
+      <CircularProgress />
+    </Paper>
+  ) : (
+    <BalanceVisibleContext.Provider value={{ balanceVisibility, setBalanceVisibility }}>
+      <Paper square className={classes.paperAccount}>
+        <Box paddingY={1} paddingX={2} display='flex' alignItems='center'>
+
+          <Box width='50%' display='flex'>
+            { account?.userAddress &&
+              <>
+                <AccountCard
+                  account={{
+                    address: account?.userAddress,
+                    name: account?.userName
+                  }}
+                />
+                <AccountMenu />
+              </>
+            }
+          </Box>
+          <Box width="50%" display='flex' alignItems='center'>  
+            <BalanceValue
+              isVisible={balanceVisibility}
+              unit={unit}
+              value={balance}
+              size='large'
+              style={{ width: '100%', justifyContent: 'flex-end' }}
+            />
+            <IconButton style={{ borderRadius: 4 }} onClick={() => setBalanceVisibility(!balanceVisibility)}>
+              {balanceVisibility ? <VisibilityIcon /> : <VisibilityOffIcon />}
+            </IconButton>
+          </Box>
+          
+        </Box>
+      </Paper>
+      <BurnrDivider />
+      <NavTabs />
+    </BalanceVisibleContext.Provider>
+  );
 }
 
 export default Home;

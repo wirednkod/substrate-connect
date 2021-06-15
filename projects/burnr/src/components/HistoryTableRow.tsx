@@ -17,12 +17,13 @@ interface rowContent {
 interface Props {
     row: rowContent,
     columns: Column[],
+    unit?: string,
     showStatus?: boolean
 }
 
-const HistoryTableRow: React.FunctionComponent<Props> = ({columns, row, showStatus = true }) => {
-	const { balanceVisibility } = useContext(BalanceVisibleContext);
-	return (
+const HistoryTableRow: React.FunctionComponent<Props> = ({columns, row, unit = 'Unit', showStatus = true }) => {
+  const { balanceVisibility } = useContext(BalanceVisibleContext);
+  return (
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         <TableRow hover key={`transaction`}>
             {columns.map((column) => {
@@ -39,7 +40,8 @@ const HistoryTableRow: React.FunctionComponent<Props> = ({columns, row, showStat
                         && (typeof value === 'number' || typeof value === 'string')
                         && <BalanceValue
                             isVisible={balanceVisibility}
-                            value={new BN(value) as Balance} />}
+                            value={new BN(value) as Balance}
+                            unit={unit} />}
                     {showStatus && column.id === 'status' && <PopoverExtrinsic status={row.status} />}
                 </TableCell>
                 )

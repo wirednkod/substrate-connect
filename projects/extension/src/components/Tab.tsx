@@ -1,64 +1,90 @@
-import React, { FunctionComponent } from 'react';
-import { Grid, Typography, Box } from '@material-ui/core';
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+import React, { FunctionComponent, SetStateAction, Dispatch } from 'react';
+import { Typography, Box, IconButton, createStyles, makeStyles } from '@material-ui/core';
+import CloseIcon from '@material-ui/icons/Close';
 import { grey } from '@material-ui/core/colors';
-import { Switch, IconWeb3 } from '../components';
+import { IconWeb3 } from '../components';
 import { TabInterface } from '../types';
+import { ConnectionManager } from 'background/ConnectionManager';
 
 interface TabProps {
+  manager?: ConnectionManager;
   current?: boolean;
   tab?: TabInterface;
+  setActiveTab?: Dispatch<SetStateAction<TabInterface | undefined>>;
 }
 
-// TDODO: data structure. Will we ever need map here at all?
-// each uApp will be associated with one url
-// if the same uApp, or uApp with the same title will be opened in >1 tab, it's ok to duplicate it on the UI too
-const Tab: FunctionComponent<TabProps> = ({ tab, current=false }) => (
-  <Box 
-    pt={current ? 2 : 1}
-    pb={current ? 2 : 1}
-    pr={current ? 1.5 : 3}
-    pl={3}
-  >
-    <Grid
-      container
-      justify='space-between'
-      alignItems='center'
-      wrap='nowrap'
-    >
-      <Grid item>
+const useStyles = makeStyles((theme) =>
+  createStyles({
+    disableButton: {
+      color: theme.palette.text.hint,
+      marginLeft: theme.spacing(),
+      '&:not(:hover)': {
+        opacity: 0.2,
+      },
+      '& svg': {
+        fontSize: '0.8rem',
+      }
+    }
+  })
+);
+
+const Tab: FunctionComponent<TabProps> = ({ manager, tab, current=false, setActiveTab }) => {
+  const classes = useStyles();
+  /**
+     * If Tab that initiated this function has a tabId (check for validity) then disconnectTab 
+     * function will be called to disconnect the tab. At the same time, in case the tan is marked as current
+     * (meaning opened at the same window) - it is ensured that it will be removed from UI through passing setActiveTab
+     * Dispatcher.
+    **/ 
+  const onDisconnect = (): void => {
+    if (tab && tab.tabId) {
+      /* TODO(nik): Fix smoldot definition (see: https://github.com/paritytech/substrate-connect/blob/3350cdff9c4c294393160189816168a93c983f79/projects/extension/src/background/ConnectionManager.ts#L202)
+      ** eslint disable below seems to be due to smoldot definition */ 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      manager?.disconnectTab(tab.tabId);
+      if (setActiveTab && current) {
+        setActiveTab(undefined);
+      }
+    }
+  }
+
+  return (
+    <Box pt={current ? 2 : 1} pb={1} pr={1} pl={3}>
+      <Box
+        display='flex'
+        alignItems='center'
+        justifyContent='space-between'
+      >
         <Typography noWrap variant={current ? 'h3' : 'h4'}>
-          {tab?.uApp.name}
+          {tab ? tab.uApp.name : 'substrate connect'}
         </Typography>
-      </Grid>
-      <Grid item>
-        <Grid
-          container
-          alignItems='center'
-          wrap='nowrap'
-          spacing={1}
-        >
-          {tab?.uApp.networks.map(network =>
-            <Grid item key={network.name}>
+
+        { tab &&
+          <Box display='flex'alignItems='center'> 
+            {tab?.uApp.networks.map(n =>
               <IconWeb3
+                key={n}
                 size='14px'
                 color={tab?.uApp.enabled ? grey[800] : grey[400]}
               >
-                {network.name}
+                {n}
               </IconWeb3>
-            </Grid>
-          )}
-          <Grid item>
-            <Switch size={current ? 'medium' : 'small'} isActive={tab?.uApp.enabled} />
-          </Grid>
-        </Grid>
-      </Grid>
-    </Grid>
-    {!current &&
-      <Typography variant='body2' style={{color: '#78B1D0'}}>
-        {tab?.url}
-      </Typography>
-    }
-  </Box>
-);
+            )}
+            <IconButton onClick={onDisconnect} size='small' className={classes.disableButton}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        }
+      </Box>
+
+      {!current &&
+        <Typography variant='body2' color='secondary'>
+          {tab?.url}
+        </Typography>
+      }
+    </Box>
+  );
+}
 
 export default Tab;

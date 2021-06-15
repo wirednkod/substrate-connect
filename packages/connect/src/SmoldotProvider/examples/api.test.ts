@@ -9,28 +9,24 @@ import expect from 'expect';
 import { ApiPromise } from '@polkadot/api';
 import {SmoldotProvider} from '../';
 import {logger} from '@polkadot/util';
-import { FsDatabase } from '../FsDatabase';
-import westend from './westend.json';
+import westend from '../../__mocks__/westend.json';
 
 const l = logger('examples');
 let api: ApiPromise;
 let provider: SmoldotProvider;
 
 describe('API integration tests', () => {
-  beforeEach(async done => {
+  beforeEach(async () => {
       const chainSpec = JSON.stringify(westend);
-      const database = new FsDatabase('test');
-      provider = new SmoldotProvider(chainSpec, database);
+      provider = new SmoldotProvider(chainSpec);
       await provider.connect();
       api = await ApiPromise.create({ provider });
       l.log('API is ready');
       expect(api).toBeTruthy();
-      done();
   }, 15000);
 
-  afterEach(done => {
+  afterEach(() => {
     provider.disconnect();
-    done();
   }, 15000)
 
   test('API constants', () => {
@@ -43,7 +39,7 @@ describe('API integration tests', () => {
     const existentialDeposit = api.consts.balances.existentialDeposit.toHuman();
     l.log('existentialDeposit' , existentialDeposit);
     expect(genesisHash).not.toBe('');
-  }, 10000);
+  }, 15000);
 
   // This errors and error handling isnt yet implemented for storage queries
   // in smoldot: https://github.com/paritytech/smoldot/issues/388
@@ -51,13 +47,13 @@ describe('API integration tests', () => {
     const testAddress = '5FHyraDcRvSYCoSrhe8LiBLdKmuL9ptZ5tEtAtqfKfeHxA4y';
     const { nonce, data: balance } = await api.query.system.account(testAddress);
     l.log(`balance of ${balance.free} and a nonce of ${nonce}`);
-  }, 10000);
+  }, 15000);
 
   test('RPC queries', async () => {
     const chain = await api.rpc.system.chain();
     const lastHeader = await api.rpc.chain.getHeader();
     l.log(`${chain}: last block #${lastHeader.number} has hash ${lastHeader.hash}`);
-  }, 10000);
+  }, 15000);
 
   test('RPC query subscriptions', async () => {
     const chain = await api.rpc.system.chain();
@@ -71,5 +67,5 @@ describe('API integration tests', () => {
           unsubscribe = cb;
       });
     });
-  }, 10000);
+  }, 15000);
 });

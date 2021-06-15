@@ -1,19 +1,23 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+import EventEmitter from 'eventemitter3';
+import {
+  MessageToManager,
+  MessageFromManager
+} from '@substrate/connect-extension-protocol';
 import { 
+  AppState,
+  ConnectionManagerInterface,
   JsonRpcRequest,
   JsonRpcResponse,
   JsonRpcResponseSubscription,
-} from './types';
-import { 
-  AppMessage, 
-  ExtensionMessage, 
-  AppState, 
   MessageIDMapping, 
-  SubscriptionMapping,
-  ConnectionManagerInterface
+  StateEmitter,
+  SubscriptionMapping
 } from './types';
 
-export class AppMediator {
+export class AppMediator extends (EventEmitter as { new(): StateEmitter }) {
   readonly #name: string;
+  readonly #appName: string;
   readonly #port: chrome.runtime.Port;
   // REM: what to do about the fact these might be undefined?
   readonly #tabId: number | undefined;
@@ -24,28 +28,32 @@ export class AppMediator {
   readonly subscriptions: SubscriptionMapping[];
   readonly requests: MessageIDMapping[];
   highestUAppRequestId = 0;
-  #notifyOnDisconnected = false;
 
-  constructor(name: string, port: chrome.runtime.Port, manager: ConnectionManagerInterface) {
+  constructor(port: chrome.runtime.Port, manager: ConnectionManagerInterface) {
+    super();
     this.subscriptions = [];
     this.requests = [];
-    // Assign all necessery variables to privates
-    this.#name = name;
+    this.#appName = port.name.substr(0, port.name.indexOf('::'));
+    this.#name = port.name;
     this.#port = port;
     this.#tabId = port.sender?.tab?.id;
     this.#url = port.sender?.url;
     this.#manager = manager;
     // Open listeners for the incoming rpc messages
-    this.#port.onMessage.addListener(this.#handlePortMessage);
-    this.#port.onDisconnect.addListener(() => { this.#handleDisconnect(false) });
+    this.#port.onMessage.addListener(this.#handleRpcRequest);
+    this.#port.onDisconnect.addListener(() => { this.#handleDisconnect() });
   }
 
   get name(): string {
     return this.#name;
   }
 
-  get smoldotName(): string | undefined {
-    return this.#smoldotName;
+  get appName(): string {
+    return this.#appName;
+  }
+
+  get smoldotName(): string {
+    return this.#smoldotName || '';
   }
 
   get tabId(): number | undefined {
@@ -70,8 +78,16 @@ export class AppMediator {
   }
 
   #sendError = (message: string): void => {
-    const error: ExtensionMessage = { type: 'error', payload: message };
+    const error: MessageFromManager = { type: 'error', payload: message };
     this.#port.postMessage(error);
+  }
+
+  #checkForDisconnected = (): void => {
+      if (this.requests.length === 0) {
+        // All our unsubscription messages have been replied to
+        this.#state = 'disconnected';
+        this.#manager.unregisterApp(this, this.#smoldotName as string);
+      }
   }
 
   processSmoldotMessage(message: JsonRpcResponse): boolean {
@@ -89,12 +105,7 @@ export class AppMediator {
         // We don't forward the RPC message to the UApp - it's not there any more
         const idx = this.requests.indexOf(request);
         this.requests.splice(idx, 1);
-        if (this.requests.length === 0) {
-          // All our unsubscription messages have been replied to
-          this.#state = 'disconnected';
-          this.#manager.unregisterApp(this, this.#smoldotName as string);
-        }
-
+        this.#checkForDisconnected();
         return true;
       }
     }
@@ -147,16 +158,13 @@ export class AppMediator {
     return true;
   }
 
-  #handleRpcRequest = (message: string, subscription?: boolean): void => {
-    if (this.#state !== 'ready' || this.#smoldotName === undefined) {
-      const message = this.#state === 'connected'
-        ? `The app is not associated with a blockchain client`
-        : `The app is ${this.#state}`;
-
-      const error: ExtensionMessage = { type: 'error', payload: message };
-      this.#port.postMessage(error);
+  #handleRpcRequest = (msg: MessageToManager): void => {
+    if (msg.type !== 'rpc') {
+      console.warn(`Unrecognised message type ${msg.type} received from content script`);
       return;
     }
+
+    const { payload: message, subscription } = msg;
 
     const parsed =  JSON.parse(message) as JsonRpcRequest;
     const appID = parsed.id as number;
@@ -174,39 +182,31 @@ export class AppMediator {
     // TODO: what about unsubscriptions requested by the UApp - we need to remove
     // the subscription from our subscriptions state
 
-    const smoldotID = this.#manager.sendRpcMessageTo(this.#smoldotName, parsed);
+    const smoldotID = this.#manager.sendRpcMessageTo(this.#smoldotName as string, parsed);
     this.requests.push({ appID, smoldotID });
   }
 
-  #handleAssociateRequest = (name: string): void => {
-    if (this.#state !== 'connected' && this.#smoldotName) {
-      this.#sendError(`Cannot reassociate, app is already associated with ${this.#smoldotName}`);
-      return;
+  public associate(): boolean {
+    const splitIdx = this.#port.name.indexOf('::');
+    if (splitIdx === -1) {
+      this.#sendError(`Invalid port name ${this.#port.name} expected <app_name>::<chain_name>`);
+      this.#port.disconnect();
+      return false;
     }
-    if (!this.#manager.hasClientFor(name)) {
-      this.#sendError(`Extension does not have client for ${name}`);
-      return;
-    }
-    this.#manager.registerApp(this, name);
-    this.#smoldotName = name;
-    this.#state = 'ready';
-    return;
-  }
+    this.#smoldotName = this.#port.name.substr(splitIdx + 2, this.#port.name.length);
 
-  #handlePortMessage = (message: AppMessage): void => {
-    if (message.type == 'associate') {
-      this.#handleAssociateRequest(message.payload);
-      return;
+    if (!this.#manager.hasClientFor(this.#smoldotName)) {
+      this.#sendError(`Extension does not have client for ${this.#smoldotName}`);
+      this.#port.disconnect();
+      return false;
     }
 
-    if (message.type === 'rpc') {
-      this.#handleRpcRequest(message.payload, message.subscription);
-      return;
-    }
+    this.#manager.registerApp(this, this.#smoldotName);
+    return true;
   }
 
   disconnect(): void {
-    this.#handleDisconnect(true);
+    this.#handleDisconnect();
   }
 
   #sendUnsubscribe = (sub: SubscriptionMapping): void => {
@@ -227,15 +227,17 @@ export class AppMediator {
     this.requests.push({ appID, smoldotID });
   };
 
-  #handleDisconnect = (notify: boolean): void => {
-    if (this.#state === 'disconnecting' || this.#state === 'disconnected') {
+  #handleDisconnect = (): void => {
+    if (this.#state === 'disconnecting') {
       throw new Error('Cannot disconnect - already disconnecting / disconnected');
+    } else if (this.#state === 'disconnected') {
+      throw new Error('Cannot disconnect - already disconnected');
     }
 
     this.#state = 'disconnecting';
-    this.#notifyOnDisconnected = notify;
     this.subscriptions.forEach(this.#sendUnsubscribe);
     // remove all the subscriptions
     this.subscriptions.splice(0, this.subscriptions.length);
+    this.#checkForDisconnected();
   }
 }
