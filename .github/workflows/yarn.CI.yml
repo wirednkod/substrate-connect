@@ -34,7 +34,7 @@ jobs:
       if: ${{ env.PUSH_PACKAGES }}
       run: echo I will deploy only when master
       run: yarn deploy
-      uses: actions/checkout@v2
+    -  uses: actions/checkout@v2
       with: 
         ref: 'gh-pages'
     -  uses: anantaramdas/ipfs-pinata-deploy-action@v1.6.3
