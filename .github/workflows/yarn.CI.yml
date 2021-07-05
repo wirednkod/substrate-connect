@@ -13,8 +13,6 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    env:
-      PUSH_PACKAGES: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
 
     strategy:
       matrix:
@@ -30,13 +28,12 @@ jobs:
     - run: yarn lint
     - run: yarn build
     - run: yarn test
-    - name: Deploy when merge with master
-      if: ${{ env.PUSH_PACKAGES }}
-      run: echo I will sd deploy only when master
-      # run: yarn deploy
-    # - uses: actions/checkout@v2
-    #   with: 
-    #     ref: 'gh-pages'
+    - run: yarn deploy
+      # only:
+      #   - master
+    - uses: actions/checkout@v2
+      with: 
+        ref: 'gh-pages'
     - uses: anantaramdas/ipfs-pinata-deploy-action@v1.6.3
       id: ipfs-upload
       with:
@@ -45,5 +42,7 @@ jobs:
         pinata-api-key: ${{ secrets.PINATA_KEY }}
         pinata-secret-api-key: ${{ secrets.PINATA_SECRET }}
         remove-old: true
+      # only:
+      #   - master
     - run: |
         echo "Uploaded hash: ${{ steps.ipfs-upload.outputs.hash }}"
