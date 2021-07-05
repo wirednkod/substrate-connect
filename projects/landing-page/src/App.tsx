@@ -2,6 +2,7 @@
 import React from 'react';
 import { CssBaseline, ThemeProvider, createMuiTheme, Typography, Box, Grid } from '@material-ui/core';
 import { theme, dark, Loader, Logo, Sidebar, UIContainer, Section, SectionHeading, SectionText, SectionRef, FooterLink, SidebarLink, Code } from './components';
+import MuiAlert, { AlertProps } from '@material-ui/lab/Alert';
 import { CardNetwork, CardProject } from './components/Cards';
 
 import BrowserDemo from 'url:../public/assets/images/BrowserDemo.png';
@@ -9,6 +10,10 @@ import NetworksDemo from 'url:../public/assets/images/NetworksDemo.png';
 import Burnr from 'url:../public/assets/images/Burnr.png';
 import Extension from 'url:../public/assets/images/Extension.png';
 import YourProject from 'url:../public/assets/images/YourProject.png';
+
+const Alert = (props: AlertProps) => {
+  return <MuiAlert elevation={6} variant="filled" {...props} />;
+}
 
 const App: React.FunctionComponent = () => {
   return (
@@ -23,9 +28,12 @@ const App: React.FunctionComponent = () => {
             </Typography>
           </Section>
           <Section>
+            <Alert severity="warning">This project is experimental!</Alert>
+          </Section>
+          <Section>
             <SectionHeading id='substrate-based-chains' prefix='1'>Substrate-based chains</SectionHeading>
             <SectionText>
-              Substrate is a modular framework to create purpose-built blockchains by composing custom or pre-built components. It is the backbone that powers Polkadot, a next generation, heterogeneous, multi-chain network and its ecosystem.
+              Substrate is a modular framework for creating use-case optimized blockchains at a low cost, by composing custom or pre-built components. Substrate is the backbone that powers Polkadot, a next-generation, heterogeneous, multi-chain network, and its ecosystem.
             </SectionText>
             <SectionRef href='https://www.substrate.io/'>
               substrate.io
@@ -38,7 +46,7 @@ const App: React.FunctionComponent = () => {
           <Section>
             <SectionHeading id='wasm-light-clients' prefix='2'>Wasm Light Clients</SectionHeading>
             <SectionText>
-              Substrate-connect turns a browser into a node in the network for the very end-users of web3 apps to interact with blockchains directly, without connecting to third-party remote nodes and servers. These in-browser light clients are a unique feature of substrate-based networks. 
+              Substrate-connect turns a browser into a node on a network allowing end-users of Web3 apps to interact with blockchains directly - without connecting to third-party remote nodes and other servers. Removing intermediary servers between network and its users improves security, simplifies infrastructure of a network and lowers its maintenance costs. Decentralized in-browser light clients are a unique feature of substrate-based networks.
             </SectionText>
             <SectionRef href='https://www.parity.io/what-is-a-light-client/'>
               “What is a light client and why you should care?” by Thibaut Sardan
@@ -112,7 +120,12 @@ const App: React.FunctionComponent = () => {
             </ThemeProvider>
           </Section>
           <Section>
-            <SectionHeading id='projects' prefix='5'>Projects</SectionHeading>
+            <SectionHeading id='api-docs' prefix='5'>API Documentation</SectionHeading>
+            <SectionText>For learning more about substrate-connect`s API and usage follow the link below:</SectionText>
+            <SectionRef href='https://paritytech.github.io/substrate-connect/api/'>Learn more</SectionRef>
+          </Section>
+          <Section>
+            <SectionHeading id='projects' prefix='6'>Projects</SectionHeading>
             <CardProject
               title='Browser Demo'
               subtitle='Minimal implementation'
@@ -154,10 +167,10 @@ const App: React.FunctionComponent = () => {
             <Section pt={5} pb={5}>
               {/* TODO: Playground */}
               <Box>
-                <FooterLink>© 2021 Parity Technologies</FooterLink>
-                <FooterLink>Terms & conditions</FooterLink>
-                <FooterLink>Privacy policy</FooterLink>
-                <FooterLink>Report an issue</FooterLink>
+                <FooterLink href='https://parity.io/'>© 2021 Parity Technologies</FooterLink>
+                <FooterLink href='https://substrate.dev/terms'>Terms & conditions</FooterLink>
+                <FooterLink href='https://www.parity.io/privacy/'>Privacy policy</FooterLink>
+                <FooterLink href='https://github.com/paritytech/substrate-connect/issues'>Report an issue</FooterLink>
                 <FooterLink href='https://github.com/paritytech/substrate-connect'>GitHub</FooterLink>
               </Box>
             </Section>
@@ -169,6 +182,7 @@ const App: React.FunctionComponent = () => {
           <SidebarLink href='#wasm-light-clients'>Wasm Light Clients</SidebarLink>
           <SidebarLink href='#supported-networks'>Supported Networks</SidebarLink>
           <SidebarLink href='#getting-started'>Getting Started</SidebarLink>
+          <SidebarLink href='#api-docs'>API Documentation</SidebarLink>
           <SidebarLink href='#projects'>Projects</SidebarLink>
         </Sidebar>
         {/* TODO: Footer */}
