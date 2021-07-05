@@ -37,7 +37,7 @@ jobs:
       uses: actions/checkout@v2
       with: 
         ref: 'gh-pages'
-    - uses: anantaramdas/ipfs-pinata-deploy-action@v1.6.3
+      uses: anantaramdas/ipfs-pinata-deploy-action@v1.6.3
       id: ipfs-upload
       with:
         pin-name: 'substrate-connect'
