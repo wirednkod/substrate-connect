@@ -32,26 +32,24 @@ jobs:
     - name: Build
       run: yarn build
     - name: Deploy
-      run:         
-          mkdir -p ./_site/burnr
-          mkdir -p ./_site/smoldot-browser-demo
-          mkdir -p ./_site/multiple-network-demo
-          mkdir -p ./_site/extension
-          touch ./_site/.nojekyll
-          echo "Place burnr wallet demo's files."
-          cp -r ./projects/burnr/dist/* ./$directory/burnr/.
-          echo "Place Smoldot browser demo's files."
-          cp -r ./projects/smoldot-browser-demo/dist/* ./$directory/smoldot-browser-demo/.
-          echo "Place Multiple network demo's files."
-          cp -r ./projects/multiple-network-demo/dist/* ./$directory/multiple-network-demo/.
-          echo "Place Substrate-connect extension's zip."
-          cp ./projects/extension/dist/substrate-connect.zip ./$directory/extension/substrate-connect.zip
-          echo "Place landing page's files."
-          cp -r ./projects/landing-page/dist/* ./$directory/.
-          echo "Generate API docs."
-          yarn api-docs
+      run: mkdir -p ./_site/burnr &&
+          mkdir -p ./_site/smoldot-browser-demo &&
+          mkdir -p ./_site/multiple-network-demo &&
+          mkdir -p ./_site/extension &&
+          touch ./_site/.nojekyll &&
+          echo "Place burnr wallet demo's files." &&
+          cp -r ./projects/burnr/dist/* ./$directory/burnr/. &&
+          echo "Place Smoldot browser demo's files." &&
+          cp -r ./projects/smoldot-browser-demo/dist/* ./$directory/smoldot-browser-demo/. &&
+          echo "Place Multiple network demo's files." &&
+          cp -r ./projects/multiple-network-demo/dist/* ./$directory/multiple-network-demo/. &&
+          echo "Place Substrate-connect extension's zip." &&
+          cp ./projects/extension/dist/substrate-connect.zip ./$directory/extension/substrate-connect.zip &&
+          echo "Place landing page's files." &&
+          cp -r ./projects/landing-page/dist/* ./$directory/. &&
+          echo "Generate API docs." &&
+          yarn api-docs &&
           echo -e "\033[0;32mDeleting old content...\033[0m"
-
     - uses: actions/checkout@v2
       with: 
         ref: 'gh-pages'
